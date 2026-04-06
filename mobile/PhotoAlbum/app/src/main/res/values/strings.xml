@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">Photo Albums</string>
+    <string name="toolbar_title">Галерея</string>
+    <string name="search_hint">Поиск альбомов</string>
+    <string name="upload_button_text">Выбрать фото</string>
+    <string name="upload_all_button_text">Выбрать все фото</string>
+    <string name="analyze_button_empty">Сначала выберите фото</string>
+    <string name="analyze_button_with_count">Проанализировать (%1$d)</string>
+    <string name="analyze_button_loading_with_progress">Отправка на сервер... %1$d/%2$d</string>
+    <string name="album_title">Альбом</string>
+    <string name="album_subtitle_placeholder">0 фото</string>
+    <string name="photo_description_placeholder">Описание</string>
+    <string name="photo_tags_placeholder">Теги</string>
+    <string name="permission_required_message">Нужен доступ к фото на устройстве</string>
+    <string name="no_photos_found_message">На устройстве не найдено фото</string>
+    <string name="all_photos_selected_message">Выбрано фото: %1$d</string>
+    <string name="analysis_progress_placeholder">0/0</string>
+    <string name="analysis_progress_text">Обработано %1$d из %2$d</string>
+</resources>
