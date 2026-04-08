@@ -1,4 +1,4 @@
-package com.example.photoalbums.ui.activity
+﻿package com.example.photoalbums.ui.activity
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.GridLayoutManager
 import com.example.photoalbums.data.local.AppDatabase
+import com.example.photoalbums.data.local.UserPreferences
 import com.example.photoalbums.data.remote.ClientApi
 import com.example.photoalbums.data.repository.PhotoRepository
 import com.example.photoalbums.databinding.ActivityAlbumBinding
@@ -30,7 +31,7 @@ class AlbumActivity : AppCompatActivity() {
         title = albumName
 
         val db = AppDatabase.getInstance(this)
-        val repo = PhotoRepository(db.photoDao(), ClientApi.api)
+        val repo = PhotoRepository(db.photoDao(), ClientApi.api, UserPreferences(this))
 
         viewModel = ViewModelProvider(
             this,
@@ -46,7 +47,7 @@ class AlbumActivity : AppCompatActivity() {
         binding.recyclerView.adapter = adapter
 
         viewModel.photos.observe(this) { photos ->
-            adapter.submitList(photos.filter { photo -> photo.tags.contains(albumName) })
+            adapter.submitList(photos.filter { photo -> photo.albumNames.contains(albumName) })
         }
 
         viewModel.loadPhotos()
@@ -57,3 +58,4 @@ class AlbumActivity : AppCompatActivity() {
         return true
     }
 }
+

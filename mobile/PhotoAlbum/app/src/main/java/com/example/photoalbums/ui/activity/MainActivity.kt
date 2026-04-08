@@ -1,4 +1,4 @@
-package com.example.photoalbums.ui.activity
+﻿package com.example.photoalbums.ui.activity
 
 import android.Manifest
 import android.content.Intent
@@ -21,12 +21,14 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.photoalbums.R
 import com.example.photoalbums.data.local.AppDatabase
 import com.example.photoalbums.data.local.PhotoEntity
+import com.example.photoalbums.data.local.UserPreferences
 import com.example.photoalbums.data.remote.ClientApi
 import com.example.photoalbums.data.repository.PhotoRepository
 import com.example.photoalbums.databinding.ActivityMainBinding
 import com.example.photoalbums.ui.adapter.AlbumAdapter
 import com.example.photoalbums.utils.GroupingUtils
 import com.example.photoalbums.viewmodel.PhotoViewModel
+import com.google.android.material.chip.Chip
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -40,9 +42,10 @@ class MainActivity : ComponentActivity() {
     private var selectedUris: List<Uri> = emptyList()
 
     private val pickImages =
-        registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(20)) { uris ->
-            selectedUris = uris
-            updateAnalyzeButtonState()
+        registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(50)) { uris ->
+            selectedUris = uris.distinctBy { it.toString() }
+            updateSyncButtonState()
+            updateSelectedSummary()
         }
 
     private val requestImagesPermission =
@@ -60,7 +63,7 @@ class MainActivity : ComponentActivity() {
         setContentView(binding.root)
 
         val db = AppDatabase.getInstance(this)
-        val repo = PhotoRepository(db.photoDao(), ClientApi.api)
+        val repo = PhotoRepository(db.photoDao(), ClientApi.api, UserPreferences(this))
 
         viewModel = ViewModelProvider(
             this,
@@ -85,8 +88,17 @@ class MainActivity : ComponentActivity() {
             requestAccessAndLoadAllPhotos()
         }
 
-        binding.btnAnalyze.setOnClickListener {
-            viewModel.analyze(selectedUris, this)
+        binding.btnSync.setOnClickListener {
+            viewModel.sync(selectedUris, this)
+        }
+
+        binding.btnClearMarkers.setOnClickListener {
+            viewModel.resetUploadMarkers()
+        }
+
+        binding.btnAddTag.setOnClickListener {
+            viewModel.addTag(binding.tagInput.text?.toString().orEmpty())
+            binding.tagInput.text?.clear()
         }
 
         binding.search.doAfterTextChanged { text ->
@@ -97,6 +109,11 @@ class MainActivity : ComponentActivity() {
             renderAlbums(photos)
         }
 
+        viewModel.tags.observe(this) { tags ->
+            renderTags(tags)
+            updateSyncButtonState()
+        }
+
         viewModel.message.observe(this) { message ->
             if (!message.isNullOrBlank()) {
                 Toast.makeText(this, message, Toast.LENGTH_LONG).show()
@@ -104,26 +121,24 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        viewModel.analysisCompleted.observe(this) { completed ->
+        viewModel.syncCompleted.observe(this) { completed ->
             if (completed) {
                 selectedUris = emptyList()
-                updateAnalyzeButtonState()
-                viewModel.consumeAnalysisCompleted()
+                updateSelectedSummary()
+                updateSyncButtonState()
+                viewModel.consumeSyncCompleted()
             }
         }
 
-        viewModel.isAnalyzing.observe(this) {
-            updateAnalyzeButtonState()
+        viewModel.isSyncing.observe(this) {
+            updateSyncButtonState()
+            updateProgressUi()
         }
 
-        viewModel.analysisProgress.observe(this) { progress ->
-            updateProgressUi(progress)
-            updateAnalyzeButtonState()
-        }
-
-        updateProgressUi(viewModel.analysisProgress.value ?: PhotoViewModel.AnalysisProgress(0, 0))
-        updateAnalyzeButtonState()
-        viewModel.loadPhotos()
+        updateSelectedSummary()
+        updateProgressUi()
+        updateSyncButtonState()
+        viewModel.loadInitialState()
     }
 
     private fun requestAccessAndLoadAllPhotos() {
@@ -169,19 +184,33 @@ class MainActivity : ComponentActivity() {
             if (uris.isEmpty()) {
                 showToast(R.string.no_photos_found_message)
             } else {
-                selectedUris = uris
-                updateAnalyzeButtonState()
-                showToast(getString(R.string.all_photos_selected_message, uris.size))
+                selectedUris = uris.distinctBy { it.toString() }
+                updateSyncButtonState()
+                updateSelectedSummary()
+                showToast(getString(R.string.all_photos_selected_message, selectedUris.size))
             }
         }
     }
 
+    private fun renderTags(tags: List<String>) {
+        binding.tagChipGroup.removeAllViews()
+
+        tags.forEach { tag ->
+            val chip = Chip(this).apply {
+                text = tag
+                isCloseIconVisible = true
+                setOnCloseIconClickListener { viewModel.removeTag(tag) }
+            }
+            binding.tagChipGroup.addView(chip)
+        }
+    }
+
     private fun renderAlbums(photos: List<PhotoEntity>) {
-        val albums = GroupingUtils.groupByTags(photos)
+        val albums = GroupingUtils.groupByAlbums(photos)
             .filterKeys { it.isNotBlank() }
-            .map { (tag, groupedPhotos) ->
+            .map { (albumName, groupedPhotos) ->
                 AlbumAdapter.AlbumItem(
-                    name = tag,
+                    name = albumName,
                     coverUri = groupedPhotos.firstOrNull()?.uri,
                     photoCount = groupedPhotos.size
                 )
@@ -189,39 +218,32 @@ class MainActivity : ComponentActivity() {
             .sortedBy { it.name.lowercase() }
 
         albumAdapter.submitList(albums)
+        binding.emptyState.visibility = if (albums.isEmpty()) View.VISIBLE else View.GONE
     }
 
-    private fun updateAnalyzeButtonState() {
-        val isAnalyzing = viewModel.isAnalyzing.value == true
-        val progress = viewModel.analysisProgress.value ?: PhotoViewModel.AnalysisProgress(0, 0)
-        binding.btnLoad.isEnabled = !isAnalyzing
-        binding.btnLoadAll.isEnabled = !isAnalyzing
-        binding.btnAnalyze.isEnabled = selectedUris.isNotEmpty() && !isAnalyzing
-        binding.btnAnalyze.text = when {
-            isAnalyzing -> getString(
-                R.string.analyze_button_loading_with_progress,
-                progress.processed,
-                progress.total
-            )
-            selectedUris.isEmpty() -> getString(R.string.analyze_button_empty)
-            else -> getString(R.string.analyze_button_with_count, selectedUris.size)
+    private fun updateSelectedSummary() {
+        binding.selectedSummary.text = getString(R.string.selected_photos_summary, selectedUris.size)
+    }
+
+    private fun updateSyncButtonState() {
+        val isSyncing = viewModel.isSyncing.value == true
+        binding.btnLoad.isEnabled = !isSyncing
+        binding.btnLoadAll.isEnabled = !isSyncing
+        binding.btnAddTag.isEnabled = !isSyncing
+        binding.btnClearMarkers.isEnabled = !isSyncing
+        binding.btnSync.isEnabled = !isSyncing
+        binding.btnSync.text = when {
+            isSyncing -> getString(R.string.sync_button_loading)
+            selectedUris.isEmpty() -> getString(R.string.sync_button_refresh)
+            else -> getString(R.string.sync_button_with_count, selectedUris.size)
         }
     }
 
-    private fun updateProgressUi(progress: PhotoViewModel.AnalysisProgress) {
-        val visible = progress.total > 0 && viewModel.isAnalyzing.value == true
+    private fun updateProgressUi() {
+        val visible = viewModel.isSyncing.value == true
         binding.progressBar.visibility = if (visible) View.VISIBLE else View.GONE
         binding.progressText.visibility = if (visible) View.VISIBLE else View.GONE
-
-        if (visible) {
-            binding.progressBar.max = progress.total
-            binding.progressBar.progress = progress.processed
-            binding.progressText.text = getString(
-                R.string.analysis_progress_text,
-                progress.processed,
-                progress.total
-            )
-        }
+        binding.progressText.text = getString(R.string.sync_in_progress_message)
     }
 
     private fun openAlbum(album: AlbumAdapter.AlbumItem) {
@@ -251,3 +273,4 @@ class MainActivity : ComponentActivity() {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 }
+

@@ -25,7 +25,8 @@ The backend:
 - accepts image uploads;
 - stores uploaded files in `backend/media/`;
 - saves analysis results in SQLite;
-- sends images to an external LLaVA endpoint and extracts tags/category/description.
+- sends images to an external LLaVA endpoint and extracts tags/category/description;
+- can detect faces with InsightFace and store face coordinates.
 
 ### Stack
 
@@ -35,6 +36,9 @@ The backend:
 - Pillow
 - requests
 - deep-translator
+- InsightFace
+- ONNX Runtime
+- OpenCV
 
 ### Run Locally
 
@@ -72,14 +76,25 @@ The backend reads these variables:
 - `LLAVA_PROMPT` - custom prompt sent to the model
 - `LLAVA_TIMEOUT_SECONDS` - request timeout
 - `LLAVA_AUTH_TOKEN` - bearer token for the analysis service
+- `FACE_DETECTION_ENABLED` - enables server-side face detection
+- `FACE_ANALYSIS_MODEL_NAME` - InsightFace model pack name, for example `buffalo_l`
+- `FACE_ANALYSIS_PROVIDERS` - ONNX Runtime providers, for example `CPUExecutionProvider`
+- `FACE_ANALYSIS_DET_WIDTH` - detector width, default `640`
+- `FACE_ANALYSIS_DET_HEIGHT` - detector height, default `640`
 
 Example:
 
 ```powershell
 $env:LLAVA_COLAB_URL="https://your-endpoint.example/analyze"
 $env:LLAVA_TIMEOUT_SECONDS="120"
+$env:FACE_DETECTION_ENABLED="1"
 python manage.py runserver 0.0.0.0:8080
 ```
+
+When face detection is enabled, each upload response also includes:
+
+- `faces` - list of detected faces with bounding boxes and confidence
+- `face_count` - number of faces found in the image
 
 ## Mobile App
 

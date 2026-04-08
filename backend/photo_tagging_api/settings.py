@@ -133,7 +133,9 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 # LLaVA (Google Colab) settings.
 # Example: https://<your-ngrok-subdomain>.ngrok-free.app/analyze
-LLAVA_COLAB_URL = os.getenv('LLAVA_COLAB_URL', '')
+LLAVA_COLAB_URL = os.getenv(
+    'LLAVA_COLAB_URL',
+    '')
 
 LLAVA_PROMPT = os.getenv(
     'LLAVA_PROMPT',
@@ -143,6 +145,21 @@ LLAVA_PROMPT = os.getenv(
 
 LLAVA_TIMEOUT_SECONDS = int(os.getenv('LLAVA_TIMEOUT_SECONDS', '120'))
 LLAVA_AUTH_TOKEN = os.getenv('LLAVA_AUTH_TOKEN', '')
+
+FACE_DETECTION_ENABLED = os.getenv('FACE_DETECTION_ENABLED', '0').strip().lower() in {
+    '1', 'true', 'yes', 'on'
+}
+FACE_ANALYSIS_MODEL_NAME = os.getenv('FACE_ANALYSIS_MODEL_NAME', 'buffalo_l')
+FACE_ANALYSIS_CTX_ID = int(os.getenv('FACE_ANALYSIS_CTX_ID', '0'))
+FACE_ANALYSIS_DET_SIZE = (
+    int(os.getenv('FACE_ANALYSIS_DET_WIDTH', '640')),
+    int(os.getenv('FACE_ANALYSIS_DET_HEIGHT', '640')),
+)
+FACE_ANALYSIS_PROVIDERS = [
+    provider.strip()
+    for provider in os.getenv('FACE_ANALYSIS_PROVIDERS', 'CPUExecutionProvider').split(',')
+    if provider.strip()
+]
 
 # Tags you care about. If these words are present in the description, they are prioritized.
 LLAVA_PREFERRED_TAGS = [

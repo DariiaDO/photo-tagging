@@ -1,4 +1,4 @@
-package com.example.photoalbums.ui.adapter
+﻿package com.example.photoalbums.ui.adapter
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
@@ -31,12 +31,16 @@ class PhotoAdapter :
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = getItem(position)
 
-        holder.description.text = item.description
-        holder.tags.text = item.tags.joinToString(", ")
+        holder.description.text = item.description.ifBlank {
+            holder.itemView.context.getString(R.string.photo_description_placeholder)
+        }
+        holder.tags.text = item.albumNames.joinToString(", ").ifBlank {
+            item.tags.joinToString(", ")
+        }
 
-        // загрузка картинки
         ImageLoader.load(holder.image, item.uri)
     }
+
     class DiffCallback : DiffUtil.ItemCallback<PhotoEntity>() {
         override fun areItemsTheSame(oldItem: PhotoEntity, newItem: PhotoEntity): Boolean {
             return oldItem.uri == newItem.uri
@@ -47,3 +51,4 @@ class PhotoAdapter :
         }
     }
 }
+

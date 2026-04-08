@@ -1,4 +1,4 @@
-package com.example.photoalbums.viewmodel
+﻿package com.example.photoalbums.viewmodel
 
 import android.content.Context
 import android.net.Uri
@@ -15,25 +15,33 @@ class PhotoViewModel(
     private val repository: PhotoRepository
 ) : ViewModel() {
 
-    data class AnalysisProgress(
-        val processed: Int,
-        val total: Int
+    data class SyncProgress(
+        val selected: Int,
+        val pending: Int
     )
 
     private val _photos = MutableLiveData<List<PhotoEntity>>()
     val photos: LiveData<List<PhotoEntity>> = _photos
 
+    private val _tags = MutableLiveData<List<String>>()
+    val tags: LiveData<List<String>> = _tags
+
     private val _message = MutableLiveData<String?>()
     val message: LiveData<String?> = _message
 
-    private val _isAnalyzing = MutableLiveData(false)
-    val isAnalyzing: LiveData<Boolean> = _isAnalyzing
+    private val _isSyncing = MutableLiveData(false)
+    val isSyncing: LiveData<Boolean> = _isSyncing
 
-    private val _analysisCompleted = MutableLiveData(false)
-    val analysisCompleted: LiveData<Boolean> = _analysisCompleted
+    private val _syncCompleted = MutableLiveData(false)
+    val syncCompleted: LiveData<Boolean> = _syncCompleted
 
-    private val _analysisProgress = MutableLiveData(AnalysisProgress(0, 0))
-    val analysisProgress: LiveData<AnalysisProgress> = _analysisProgress
+    private val _syncProgress = MutableLiveData(SyncProgress(0, 0))
+    val syncProgress: LiveData<SyncProgress> = _syncProgress
+
+    fun loadInitialState() {
+        _tags.value = repository.getTags()
+        loadPhotos()
+    }
 
     fun loadPhotos() {
         viewModelScope.launch {
@@ -47,36 +55,59 @@ class PhotoViewModel(
         }
     }
 
-    fun analyze(uris: List<Uri>, context: Context) {
-        if (_isAnalyzing.value == true || uris.isEmpty()) return
+    fun sync(uris: List<Uri>, context: Context) {
+        if (_isSyncing.value == true) return
 
         viewModelScope.launch {
-            _isAnalyzing.value = true
-            _analysisCompleted.value = false
-            _analysisProgress.value = AnalysisProgress(0, uris.size)
+            _isSyncing.value = true
+            _syncCompleted.value = false
+            _syncProgress.value = SyncProgress(selected = uris.distinctBy { it.toString() }.size, pending = 0)
 
             runCatching {
-                val batchSize = 20
-                var processed = 0
-
-                uris.chunked(batchSize).forEach { batch ->
-                    batch.forEach { uri ->
-                        repository.analyzeAndSave(uri, context)
-                        processed += 1
-                        _analysisProgress.value = AnalysisProgress(processed, uris.size)
-                    }
-                }
-
-                repository.getAll()
-            }.onSuccess { photos ->
+                val result = repository.syncPhotos(uris, context)
+                _syncProgress.value = SyncProgress(
+                    selected = uris.distinctBy { it.toString() }.size,
+                    pending = result.syncedSelectionCount
+                )
+                repository.getAll() to result
+            }.onSuccess { (photos, result) ->
                 _photos.value = photos
-                _analysisCompleted.value = true
-                _message.value = "Фото успешно обработаны"
+                _syncCompleted.value = true
+                _message.value = buildSuccessMessage(result)
             }.onFailure { throwable ->
                 _message.value = throwable.toUserMessage()
             }
 
-            _isAnalyzing.value = false
+            _isSyncing.value = false
+        }
+    }
+
+    fun addTag(rawTag: String) {
+        val tag = rawTag.trim()
+        if (tag.isEmpty()) return
+
+        val current = _tags.value.orEmpty()
+        if (current.any { it.equals(tag, ignoreCase = true) }) {
+            _message.value = "Тег уже существует"
+            return
+        }
+
+        val updated = current + tag
+        repository.saveTags(updated)
+        _tags.value = updated
+    }
+
+    fun removeTag(tag: String) {
+        val updated = _tags.value.orEmpty().filterNot { it == tag }
+        repository.saveTags(updated)
+        _tags.value = updated
+    }
+
+    fun resetUploadMarkers() {
+        viewModelScope.launch {
+            repository.clearUploadMarkers()
+            _photos.value = repository.getAll()
+            _message.value = "Метки отправки очищены"
         }
     }
 
@@ -84,15 +115,19 @@ class PhotoViewModel(
         _message.value = null
     }
 
-    fun consumeAnalysisCompleted() {
-        _analysisCompleted.value = false
-        _analysisProgress.value = AnalysisProgress(0, 0)
+    fun consumeSyncCompleted() {
+        _syncCompleted.value = false
+    }
+
+    private fun buildSuccessMessage(result: PhotoRepository.SyncResult): String {
+        return "Синхронизация завершена. Новых: ${result.uploadedCount}, пропущено: ${result.reusedCount}, всего на сервере: ${result.totalCount}"
     }
 
     private fun Throwable.toUserMessage(): String {
         return when (this) {
-            is IOException -> "Не удалось отправить фото на сервер. Проверьте адрес и доступность API."
+            is IOException -> "Не удалось синхронизировать фото. Проверьте адрес сервера и доступность API."
             else -> "Не удалось обработать фото: ${message ?: "неизвестная ошибка"}"
         }
     }
 }
+

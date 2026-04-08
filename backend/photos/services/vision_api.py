@@ -1,5 +1,6 @@
 ﻿import os
 import re
+import mimetypes
 
 import requests
 from django.conf import settings
@@ -229,8 +230,13 @@ def analyze_image_llava(image_path: str) -> dict:
         headers["Authorization"] = f"Bearer {auth_token}"
 
     with open(image_path, "rb") as image_file:
+        mime_type, _ = mimetypes.guess_type(image_path)
         files = {
-            "image": (os.path.basename(image_path), image_file, "application/octet-stream")
+            "image": (
+                os.path.basename(image_path),
+                image_file,
+                mime_type or "image/jpeg",
+            )
         }
         data = {"prompt": prompt}
         try:

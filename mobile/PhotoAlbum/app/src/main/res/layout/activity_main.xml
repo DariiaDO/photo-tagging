@@ -1,8 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:padding="12dp">
 
     <EditText
         android:id="@+id/search"
@@ -10,45 +12,126 @@
         android:layout_height="wrap_content"
         android:hint="@string/search_hint" />
 
-    <Button
-        android:id="@+id/btnLoad"
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/upload_button_text" />
+        android:layout_marginTop="12dp"
+        android:text="@string/tags_section_title"
+        android:textStyle="bold" />
 
-    <Button
-        android:id="@+id/btnLoadAll"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/upload_all_button_text" />
-
-    <Button
-        android:id="@+id/btnAnalyze"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:enabled="false"
-        android:text="@string/analyze_button_empty" />
-
-    <ProgressBar
-        android:id="@+id/progressBar"
-        style="?android:attr/progressBarStyleHorizontal"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:max="100"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/tagInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="@string/tag_input_hint"
+            android:imeOptions="actionDone"
+            android:inputType="textCapWords" />
+
+        <Button
+            android:id="@+id/btnAddTag"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/add_tag_button_text" />
+    </LinearLayout>
+
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/tagChipGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        app:singleLine="false" />
+
+    <TextView
+        android:id="@+id/selectedSummary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/selected_photos_summary_placeholder" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnLoad"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/upload_button_text" />
+
+        <Button
+            android:id="@+id/btnLoadAll"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="@string/upload_all_button_text" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnSync"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/sync_button_refresh" />
+
+        <Button
+            android:id="@+id/btnClearMarkers"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/clear_markers_button_text" />
+    </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="12dp"
         android:visibility="gone" />
 
     <TextView
         android:id="@+id/progressText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:text="@string/analysis_progress_placeholder"
+        android:layout_marginTop="8dp"
+        android:gravity="center_horizontal"
+        android:text="@string/sync_in_progress_message"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/emptyState"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center_horizontal"
+        android:text="@string/empty_albums_message"
         android:visibility="gone" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="0dp"
+        android:layout_marginTop="12dp"
+        android:layout_weight="1" />
 
 </LinearLayout>
+

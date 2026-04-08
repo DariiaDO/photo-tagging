@@ -4,16 +4,23 @@
     <string name="search_hint">Поиск альбомов</string>
     <string name="upload_button_text">Выбрать фото</string>
     <string name="upload_all_button_text">Выбрать все фото</string>
-    <string name="analyze_button_empty">Сначала выберите фото</string>
-    <string name="analyze_button_with_count">Проанализировать (%1$d)</string>
-    <string name="analyze_button_loading_with_progress">Отправка на сервер... %1$d/%2$d</string>
+    <string name="sync_button_refresh">Обновить альбомы</string>
+    <string name="sync_button_with_count">Синхронизировать (%1$d)</string>
+    <string name="sync_button_loading">Синхронизация...</string>
+    <string name="clear_markers_button_text">Сбросить метки</string>
     <string name="album_title">Альбом</string>
     <string name="album_subtitle_placeholder">0 фото</string>
-    <string name="photo_description_placeholder">Описание</string>
-    <string name="photo_tags_placeholder">Теги</string>
+    <string name="photo_description_placeholder">Описание отсутствует</string>
+    <string name="photo_tags_placeholder">Теги отсутствуют</string>
     <string name="permission_required_message">Нужен доступ к фото на устройстве</string>
     <string name="no_photos_found_message">На устройстве не найдено фото</string>
     <string name="all_photos_selected_message">Выбрано фото: %1$d</string>
-    <string name="analysis_progress_placeholder">0/0</string>
-    <string name="analysis_progress_text">Обработано %1$d из %2$d</string>
+    <string name="sync_in_progress_message">Идет синхронизация с сервером</string>
+    <string name="tags_section_title">Теги для альбомов</string>
+    <string name="tag_input_hint">Новый тег</string>
+    <string name="add_tag_button_text">Добавить</string>
+    <string name="selected_photos_summary_placeholder">Выбрано фото: 0</string>
+    <string name="selected_photos_summary">Выбрано фото: %1$d</string>
+    <string name="empty_albums_message">Альбомы появятся после первой синхронизации</string>
 </resources>
+
