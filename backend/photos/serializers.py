@@ -1,6 +1,18 @@
-from rest_framework import serializers
+﻿from rest_framework import serializers
 
-from .models import ProcessedImage
+from .models import FaceIdentity, ProcessedImage
+
+
+class FaceIdentitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FaceIdentity
+        fields = (
+            "id",
+            "device_id",
+            "number",
+            "created_at",
+        )
+        read_only_fields = fields
 
 
 class ImageUploadSerializer(serializers.ModelSerializer):

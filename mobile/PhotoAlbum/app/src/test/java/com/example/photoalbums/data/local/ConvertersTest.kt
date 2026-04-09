@@ -28,5 +28,13 @@ class ConvertersTest {
             converters.toStringList("travel,summer,sea")
         )
     }
-}
 
+    @Test
+    fun intListRoundTrip_preservesItems() {
+        val items = listOf(1, 4, 8)
+
+        val serialized = converters.fromIntList(items)
+
+        assertEquals(items, converters.toIntList(serialized))
+    }
+}

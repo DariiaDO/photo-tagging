@@ -41,9 +41,31 @@ class UserPreferences(context: Context) {
         prefs.edit().putString(KEY_TAGS, gson.toJson(normalized)).apply()
     }
 
+    fun getFaceLabels(): Map<Int, String> {
+        val raw = prefs.getString(KEY_FACE_LABELS, null) ?: return emptyMap()
+        val type = object : TypeToken<Map<String, String>>() {}.type
+        val stored = gson.fromJson<Map<String, String>>(raw, type) ?: return emptyMap()
+        return stored.mapNotNull { (key, value) ->
+            key.toIntOrNull()?.let { number -> number to value.trim() }
+        }.filter { it.second.isNotEmpty() }.toMap()
+    }
+
+    fun setFaceLabel(faceNumber: Int, label: String?) {
+        val current = getFaceLabels().toMutableMap()
+        val normalized = label?.trim().orEmpty()
+        if (normalized.isEmpty()) {
+            current.remove(faceNumber)
+        } else {
+            current[faceNumber] = normalized
+        }
+        val serialized = current.mapKeys { it.key.toString() }
+        prefs.edit().putString(KEY_FACE_LABELS, gson.toJson(serialized)).apply()
+    }
+
     companion object {
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_TAGS = "tags"
+        private const val KEY_FACE_LABELS = "face_labels"
 
         val DEFAULT_TAGS = listOf(
             "Люди",
@@ -54,4 +76,3 @@ class UserPreferences(context: Context) {
         )
     }
 }
-

@@ -8,16 +8,15 @@ object GroupingUtils {
         val grouped = linkedMapOf<String, MutableList<PhotoEntity>>()
 
         photos.forEach { photo ->
-            photo.albumNames
+            photo.albumKeys
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
                 .distinct()
-                .forEach { albumName ->
-                    grouped.getOrPut(albumName) { mutableListOf() }.add(photo)
+                .forEach { albumKey ->
+                    grouped.getOrPut(albumKey) { mutableListOf() }.add(photo)
                 }
         }
 
         return grouped
     }
 }
-

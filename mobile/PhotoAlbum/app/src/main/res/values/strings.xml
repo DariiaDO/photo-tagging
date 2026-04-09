@@ -1,26 +1,41 @@
 <resources>
     <string name="app_name">Photo Albums</string>
     <string name="toolbar_title">Галерея</string>
-    <string name="search_hint">Поиск альбомов</string>
+    <string name="search_hint">Поиск по фото</string>
     <string name="upload_button_text">Выбрать фото</string>
     <string name="upload_all_button_text">Выбрать все фото</string>
     <string name="sync_button_refresh">Обновить альбомы</string>
-    <string name="sync_button_with_count">Синхронизировать (%1$d)</string>
-    <string name="sync_button_loading">Синхронизация...</string>
+    <string name="sync_button_with_count">Отправить на сервер (%1$d)</string>
+    <string name="sync_button_loading">Отправка на сервер...</string>
     <string name="clear_markers_button_text">Сбросить метки</string>
     <string name="album_title">Альбом</string>
     <string name="album_subtitle_placeholder">0 фото</string>
     <string name="photo_description_placeholder">Описание отсутствует</string>
     <string name="photo_tags_placeholder">Теги отсутствуют</string>
+    <string name="photo_faces_only">Лица: %1$s</string>
+    <string name="photo_faces_and_tags">Лица: %1$s • Теги: %2$s</string>
+    <string name="show_description_button">Показать описание</string>
+    <string name="hide_description_button">Скрыть описание</string>
     <string name="permission_required_message">Нужен доступ к фото на устройстве</string>
     <string name="no_photos_found_message">На устройстве не найдено фото</string>
     <string name="all_photos_selected_message">Выбрано фото: %1$d</string>
-    <string name="sync_in_progress_message">Идет синхронизация с сервером</string>
+    <string name="sync_in_progress_message">Идет обработка на сервере</string>
     <string name="tags_section_title">Теги для альбомов</string>
     <string name="tag_input_hint">Новый тег</string>
     <string name="add_tag_button_text">Добавить</string>
     <string name="selected_photos_summary_placeholder">Выбрано фото: 0</string>
     <string name="selected_photos_summary">Выбрано фото: %1$d</string>
-    <string name="empty_albums_message">Альбомы появятся после первой синхронизации</string>
+    <string name="empty_albums_message">Альбомы появятся после первой отправки</string>
+    <string name="empty_search_message">По запросу ничего не найдено</string>
+    <string name="face_album_kind">Лица</string>
+    <string name="tag_album_kind">Теги</string>
+    <string name="rename_face_button">Переименовать лицо</string>
+    <string name="rename_face_title">Лицо #%1$d</string>
+    <string name="face_name_hint">Например, Мама</string>
+    <string name="save_face_name_button">Сохранить</string>
+    <string name="reset_face_name_button">Сбросить имя</string>
+    <string name="face_album_hint_placeholder">Локальное имя лица хранится только на устройстве</string>
+    <string name="face_album_hint">Лицо #%1$d. Имя хранится только на этом устройстве.</string>
+    <string name="photos_sent_message">Фото отправлены на сервер. Когда обработка завершится, нажмите обновить альбомы.</string>
+    <string name="close_photo_button">Закрыть фото</string>
 </resources>
-

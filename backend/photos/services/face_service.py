@@ -1,5 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
+from math import sqrt
 from typing import Any
 
 from django.conf import settings
@@ -53,6 +54,22 @@ def _normalize_bbox(bbox: Any) -> dict[str, int]:
     }
 
 
+def _normalize_embedding(embedding: Any) -> list[float]:
+    if embedding is None:
+        return []
+
+    try:
+        values = [float(value) for value in embedding]
+    except TypeError:
+        return []
+
+    length = sqrt(sum(value * value for value in values))
+    if length <= 0:
+        return []
+
+    return [round(value / length, 8) for value in values]
+
+
 def _normalize_face(face: Any) -> dict[str, Any]:
     data = {
         "bbox": _normalize_bbox(face.bbox),
@@ -65,6 +82,13 @@ def _normalize_face(face: Any) -> dict[str, Any]:
         data["gender"] = int(gender)
     if age is not None:
         data["age"] = int(age)
+
+    embedding_source = getattr(face, "normed_embedding", None)
+    if embedding_source is None:
+        embedding_source = getattr(face, "embedding", None)
+    embedding = _normalize_embedding(embedding_source)
+    if embedding:
+        data["embedding"] = embedding
 
     return data
 

@@ -6,6 +6,14 @@ import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
 
+data class SyncFaceResponse(
+    val bbox: Map<String, Int>,
+    val det_score: Double,
+    val gender: Int? = null,
+    val age: Int? = null,
+    val face_number: Int? = null
+)
+
 data class SyncPhotoResponse(
     val id: Int,
     val client_photo_id: String,
@@ -14,11 +22,16 @@ data class SyncPhotoResponse(
     val category: String = "unknown",
     val image_url: String? = null,
     val face_count: Int = 0,
-    val album_names: List<String> = emptyList()
+    val face_numbers: List<Int> = emptyList(),
+    val faces: List<SyncFaceResponse> = emptyList(),
+    val album_keys: List<String> = emptyList()
 )
 
 data class AlbumResponse(
+    val key: String,
     val name: String,
+    val type: String,
+    val face_number: Int? = null,
     val photo_ids: List<Int>,
     val client_photo_ids: List<String>,
     val cover_photo_id: Int?,
@@ -47,4 +60,3 @@ interface ServerApi {
         @Part parts: List<MultipartBody.Part>
     ): Response<SyncResponse>
 }
-

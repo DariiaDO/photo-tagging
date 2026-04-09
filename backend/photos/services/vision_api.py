@@ -50,6 +50,46 @@ STOP_WORDS = {
     "и", "в", "на", "с", "по", "для", "это", "как", "или", "а", "к", "из", "у", "за",
 }
 
+NON_PROMINENT_PEOPLE_PATTERNS = [
+    r"\\bhands?\\b",
+    r"\\bhand\\b",
+    r"\\barm\\b",
+    r"\\bcrowd\\b",
+    r"\\bbackground\\b",
+    r"\\bdistant\\b",
+    r"\\bfar away\\b",
+    r"\\bsmall figure\\b",
+    r"\\bhands? only\\b",
+    r"\\bрук[аи]?\\b",
+    r"\\bкист[ьи]\\b",
+    r"\\bна заднем плане\\b",
+    r"\\bвдали\\b",
+    r"\\bтолпа\\b",
+]
+
+PROMINENT_PEOPLE_PATTERNS = [
+    r"\\bportrait\\b",
+    r"\\bclose[- ]?up\\b",
+    r"\\bselfie\\b",
+    r"\\bperson\\b",
+    r"\\bman\\b",
+    r"\\bwoman\\b",
+    r"\\bchild\\b",
+    r"\\bface\\b",
+    r"\\bupper body\\b",
+    r"\\bfull body\\b",
+    r"\\bstanding\\b",
+    r"\\bposing\\b",
+    r"\\bпортрет\\b",
+    r"\\bкрупным планом\\b",
+    r"\\bселфи\\b",
+    r"\\bчеловек\\b",
+    r"\\bмужчина\\b",
+    r"\\bженщина\\b",
+    r"\\bребенок\\b",
+    r"\\bлицо\\b",
+]
+
 
 def _get_prompt() -> str:
     prompt = getattr(
@@ -83,6 +123,8 @@ def _build_prompt(base_prompt: str, base_tags: list[str]) -> str:
         f"{base_prompt}\n\n"
         f"Preferred tag list: [{tags_line}]. "
         "Use these tags whenever they fit. If none apply, add the most relevant custom tags. "
+        "Only use the people tag when a person is a main, clearly visible subject occupying a meaningful part of the frame. "
+        "If only hands are visible, or people are tiny, distant, or only in the background, do not use the people tag. "
         "Return the description in English."
     )
 
@@ -145,11 +187,20 @@ def _translate_tags_to_russian(tags: list[str]) -> list[str]:
     return translated_tags
 
 
+def _should_keep_people_tag(caption: str) -> bool:
+    caption_lower = caption.lower()
+    if any(re.search(pattern, caption_lower) for pattern in NON_PROMINENT_PEOPLE_PATTERNS):
+        return False
+    return any(re.search(pattern, caption_lower) for pattern in PROMINENT_PEOPLE_PATTERNS)
+
+
 def _extract_base_tags(caption: str, base_tags: list[str]) -> list[str]:
     caption_lower = caption.lower()
     result: list[str] = []
 
     for tag in base_tags:
+        if tag == "people" and not _should_keep_people_tag(caption):
+            continue
         keywords = TAG_KEYWORDS.get(tag, {tag})
         if any(keyword in caption_lower for keyword in keywords):
             result.append(tag)
@@ -172,7 +223,7 @@ def _extract_fallback_tags(caption: str, limit: int = 5) -> list[str]:
 
 def _compose_tags(caption: str, base_tags: list[str], limit: int = 8) -> list[str]:
     matched = _extract_base_tags(caption, base_tags)
-    fallback = _extract_fallback_tags(caption, limit=limit)
+    fallback = [tag for tag in _extract_fallback_tags(caption, limit=limit) if tag != "people"]
     if matched:
         merged = matched + [tag for tag in fallback if tag not in matched]
         return merged[:limit]
@@ -286,6 +337,5 @@ def analyze_image_llava(image_path: str) -> dict:
     }
 
 
-# Backward-compatible aliases for old imports/calls.
 analyze_image_blip = analyze_image_llava
 analyze_image_gemini = analyze_image_llava

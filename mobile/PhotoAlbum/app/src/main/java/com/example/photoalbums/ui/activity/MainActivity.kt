@@ -17,6 +17,7 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.photoalbums.R
 import com.example.photoalbums.data.local.AppDatabase
@@ -26,7 +27,7 @@ import com.example.photoalbums.data.remote.ClientApi
 import com.example.photoalbums.data.repository.PhotoRepository
 import com.example.photoalbums.databinding.ActivityMainBinding
 import com.example.photoalbums.ui.adapter.AlbumAdapter
-import com.example.photoalbums.utils.GroupingUtils
+import com.example.photoalbums.ui.adapter.PhotoAdapter
 import com.example.photoalbums.viewmodel.PhotoViewModel
 import com.google.android.material.chip.Chip
 import kotlinx.coroutines.Dispatchers
@@ -37,7 +38,11 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var viewModel: PhotoViewModel
+    private lateinit var repo: PhotoRepository
     private lateinit var albumAdapter: AlbumAdapter
+    private lateinit var photoAdapter: PhotoAdapter
+    private var currentQuery: String = ""
+    private var currentPhotos: List<PhotoEntity> = emptyList()
 
     private var selectedUris: List<Uri> = emptyList()
 
@@ -63,7 +68,7 @@ class MainActivity : ComponentActivity() {
         setContentView(binding.root)
 
         val db = AppDatabase.getInstance(this)
-        val repo = PhotoRepository(db.photoDao(), ClientApi.api, UserPreferences(this))
+        repo = PhotoRepository(db.photoDao(), ClientApi.api, UserPreferences(this))
 
         viewModel = ViewModelProvider(
             this,
@@ -75,6 +80,7 @@ class MainActivity : ComponentActivity() {
         )[PhotoViewModel::class.java]
 
         albumAdapter = AlbumAdapter(::openAlbum)
+        photoAdapter = PhotoAdapter(::openPhoto)
         binding.recycler.layoutManager = LinearLayoutManager(this)
         binding.recycler.adapter = albumAdapter
 
@@ -102,16 +108,26 @@ class MainActivity : ComponentActivity() {
         }
 
         binding.search.doAfterTextChanged { text ->
-            viewModel.search(text?.toString().orEmpty())
+            currentQuery = text?.toString().orEmpty().trim()
+            if (currentQuery.isBlank()) {
+                viewModel.loadPhotos()
+            } else {
+                viewModel.search(currentQuery)
+            }
         }
 
         viewModel.photos.observe(this) { photos ->
-            renderAlbums(photos)
+            currentPhotos = photos.distinctBy { it.uri }
+            renderContent()
         }
 
-        viewModel.tags.observe(this) { tags ->
-            renderTags(tags)
+        viewModel.tags.observe(this) {
+            renderTags(it)
             updateSyncButtonState()
+        }
+
+        viewModel.faceLabels.observe(this) {
+            viewModel.loadPhotos()
         }
 
         viewModel.message.observe(this) { message ->
@@ -205,20 +221,35 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun renderAlbums(photos: List<PhotoEntity>) {
-        val albums = GroupingUtils.groupByAlbums(photos)
-            .filterKeys { it.isNotBlank() }
-            .map { (albumName, groupedPhotos) ->
-                AlbumAdapter.AlbumItem(
-                    name = albumName,
-                    coverUri = groupedPhotos.firstOrNull()?.uri,
-                    photoCount = groupedPhotos.size
-                )
+    private fun renderContent() {
+        if (currentQuery.isNotBlank()) {
+            if (binding.recycler.adapter !== photoAdapter) {
+                binding.recycler.layoutManager = GridLayoutManager(this, 2)
+                binding.recycler.adapter = photoAdapter
             }
-            .sortedBy { it.name.lowercase() }
+            photoAdapter.submitList(currentPhotos)
+            binding.emptyState.visibility = if (currentPhotos.isEmpty()) View.VISIBLE else View.GONE
+            binding.emptyState.text = getString(R.string.empty_search_message)
+            return
+        }
 
+        val albums = repo.buildAlbums(currentPhotos).map { descriptor ->
+            AlbumAdapter.AlbumItem(
+                key = descriptor.key,
+                name = descriptor.title,
+                coverUri = descriptor.coverUri,
+                photoCount = descriptor.photoCount,
+                type = descriptor.type,
+                faceNumber = descriptor.faceNumber
+            )
+        }
+        if (binding.recycler.adapter !== albumAdapter) {
+            binding.recycler.layoutManager = LinearLayoutManager(this)
+            binding.recycler.adapter = albumAdapter
+        }
         albumAdapter.submitList(albums)
         binding.emptyState.visibility = if (albums.isEmpty()) View.VISIBLE else View.GONE
+        binding.emptyState.text = getString(R.string.empty_albums_message)
     }
 
     private fun updateSelectedSummary() {
@@ -248,8 +279,15 @@ class MainActivity : ComponentActivity() {
 
     private fun openAlbum(album: AlbumAdapter.AlbumItem) {
         val intent = Intent(this, AlbumActivity::class.java)
+            .putExtra("album_key", album.key)
             .putExtra("album_name", album.name)
+            .putExtra("album_type", album.type)
+            .putExtra("face_number", album.faceNumber)
         startActivity(intent)
+    }
+
+    private fun openPhoto(photo: PhotoEntity) {
+        startActivity(PhotoViewerActivity.createIntent(this, photo.imageUrl, photo.uri))
     }
 
     private fun mediaReadPermission(): String? {
@@ -273,4 +311,3 @@ class MainActivity : ComponentActivity() {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 }
-

@@ -58,6 +58,7 @@ dependencies {
     ksp("androidx.room:room-compiler:$room_version")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation(libs.material)
     implementation("io.coil-kt:coil:2.6.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.0")

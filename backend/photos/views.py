@@ -1,14 +1,18 @@
 ﻿import json
 from typing import Any
 
+from django.db.models import Max
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import ProcessedImage
+from .models import FaceIdentity, ProcessedImage
 from .services.face_service import detect_faces
 from .services.vision_api import analyze_image_llava as analyze_image
 
 OTHER_ALBUM_NAME = "Другое"
+FACE_ALBUM_PREFIX = "face:"
+TAG_ALBUM_PREFIX = "tag:"
+FACE_MATCH_THRESHOLD = 0.45
 TAG_ALIASES = {
     "люди": ["люди", "человек", "людей", "person", "people", "portrait", "face", "man", "woman", "child"],
     "природа": ["природа", "nature", "outdoor", "landscape", "forest", "tree", "sky", "sea", "beach", "mountain"],
@@ -20,6 +24,11 @@ TAG_ALIASES = {
 
 def _normalize_text(value: Any) -> str:
     return str(value or "").strip().lower()
+
+
+def _album_key(album_type: str, value: str | int) -> str:
+    prefix = FACE_ALBUM_PREFIX if album_type == "face" else TAG_ALBUM_PREFIX
+    return f"{prefix}{value}"
 
 
 def _parse_requested_tags(raw_value: Any) -> list[str]:
@@ -46,6 +55,60 @@ def _parse_requested_tags(raw_value: Any) -> list[str]:
     return normalized_tags
 
 
+def _cosine_distance(left: list[float], right: list[float]) -> float:
+    if not left or not right or len(left) != len(right):
+        return 1.0
+    similarity = sum(a * b for a, b in zip(left, right))
+    return 1.0 - similarity
+
+
+def _has_embedding(face: dict[str, Any]) -> bool:
+    embedding = face.get("embedding")
+    if embedding is None:
+        return False
+    try:
+        return len(embedding) > 0
+    except TypeError:
+        return bool(embedding)
+
+
+def _next_face_number(device_id: str) -> int:
+    maximum = FaceIdentity.objects.filter(device_id=device_id).aggregate(maximum=Max("number"))["maximum"]
+    return int(maximum or 0) + 1
+
+
+def _assign_face_numbers(device_id: str, faces: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    identities = list(FaceIdentity.objects.filter(device_id=device_id).order_by("number"))
+
+    for face in faces:
+        embedding = face.get("embedding")
+        if not _has_embedding(face):
+            continue
+        embedding = list(embedding)
+
+        best_identity = None
+        best_distance = None
+        for identity in identities:
+            distance = _cosine_distance(embedding, identity.embedding or [])
+            if best_distance is None or distance < best_distance:
+                best_distance = distance
+                best_identity = identity
+
+        if best_identity is not None and best_distance is not None and best_distance <= FACE_MATCH_THRESHOLD:
+            face["face_number"] = best_identity.number
+            continue
+
+        identity = FaceIdentity.objects.create(
+            device_id=device_id,
+            number=_next_face_number(device_id),
+            embedding=embedding,
+        )
+        identities.append(identity)
+        face["face_number"] = identity.number
+
+    return faces
+
+
 def _match_requested_tags(photo: ProcessedImage, requested_tags: list[str]) -> list[str]:
     haystacks = [
         _normalize_text(photo.category),
@@ -67,8 +130,37 @@ def _match_requested_tags(photo: ProcessedImage, requested_tags: list[str]) -> l
     return matched_tags or [OTHER_ALBUM_NAME]
 
 
+def _sanitize_face(face: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in face.items()
+        if key != "embedding"
+    }
+
+
+def _ensure_faces_identified(photo: ProcessedImage) -> list[dict[str, Any]]:
+    faces = list(photo.faces or [])
+    changed = False
+
+    if faces and any(_has_embedding(face) and face.get("face_number") is None for face in faces):
+        faces = _assign_face_numbers(photo.device_id, faces)
+        changed = True
+
+    if changed:
+        photo.faces = faces
+        photo.face_count = len(faces)
+        photo.save(update_fields=["faces", "face_count"])
+
+    return faces
+
+
 def _serialize_photo(photo: ProcessedImage, requested_tags: list[str]) -> dict[str, Any]:
-    album_names = _match_requested_tags(photo, requested_tags)
+    faces = _ensure_faces_identified(photo)
+    face_numbers = sorted({int(face["face_number"]) for face in faces if face.get("face_number") is not None})
+    tag_names = _match_requested_tags(photo, requested_tags)
+    album_keys = [_album_key("tag", tag_name) for tag_name in tag_names]
+    album_keys += [_album_key("face", face_number) for face_number in face_numbers]
+
     return {
         "id": photo.id,
         "client_photo_id": photo.client_photo_id,
@@ -77,42 +169,99 @@ def _serialize_photo(photo: ProcessedImage, requested_tags: list[str]) -> dict[s
         "tags": photo.tags or [],
         "category": photo.category,
         "description": photo.description,
-        "faces": photo.faces or [],
+        "faces": [_sanitize_face(face) for face in faces],
         "face_count": photo.face_count,
-        "album_names": album_names,
+        "face_numbers": face_numbers,
+        "album_keys": album_keys,
     }
 
 
-def _build_albums(photo_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    albums_by_name: dict[str, dict[str, Any]] = {}
+def _build_albums(photo_items: list[dict[str, Any]], requested_tags: list[str]) -> list[dict[str, Any]]:
+    albums_by_key: dict[str, dict[str, Any]] = {}
+
+    for requested_tag in requested_tags or [OTHER_ALBUM_NAME]:
+        key = _album_key("tag", requested_tag)
+        albums_by_key.setdefault(
+            key,
+            {
+                "key": key,
+                "name": requested_tag,
+                "type": "tag",
+                "face_number": None,
+                "photo_ids": [],
+                "client_photo_ids": [],
+                "cover_photo_id": None,
+                "cover_client_photo_id": None,
+                "photo_count": 0,
+            },
+        )
+
+    other_key = _album_key("tag", OTHER_ALBUM_NAME)
+    albums_by_key.setdefault(
+        other_key,
+        {
+            "key": other_key,
+            "name": OTHER_ALBUM_NAME,
+            "type": "tag",
+            "face_number": None,
+            "photo_ids": [],
+            "client_photo_ids": [],
+            "cover_photo_id": None,
+            "cover_client_photo_id": None,
+            "photo_count": 0,
+        },
+    )
 
     for photo in photo_items:
-        for album_name in photo.get("album_names") or [OTHER_ALBUM_NAME]:
-            album = albums_by_name.setdefault(
-                album_name,
-                {
-                    "name": album_name,
-                    "photo_ids": [],
-                    "client_photo_ids": [],
-                    "cover_photo_id": photo["id"],
-                    "cover_client_photo_id": photo.get("client_photo_id"),
-                    "photo_count": 0,
-                },
-            )
+        for album_key in photo.get("album_keys") or [other_key]:
+            if album_key.startswith(FACE_ALBUM_PREFIX):
+                face_number = int(album_key.split(":", 1)[1])
+                album = albums_by_key.setdefault(
+                    album_key,
+                    {
+                        "key": album_key,
+                        "name": f"Лицо #{face_number}",
+                        "type": "face",
+                        "face_number": face_number,
+                        "photo_ids": [],
+                        "client_photo_ids": [],
+                        "cover_photo_id": None,
+                        "cover_client_photo_id": None,
+                        "photo_count": 0,
+                    },
+                )
+            else:
+                album_name = album_key.split(":", 1)[1]
+                album = albums_by_key.setdefault(
+                    album_key,
+                    {
+                        "key": album_key,
+                        "name": album_name,
+                        "type": "tag",
+                        "face_number": None,
+                        "photo_ids": [],
+                        "client_photo_ids": [],
+                        "cover_photo_id": None,
+                        "cover_client_photo_id": None,
+                        "photo_count": 0,
+                    },
+                )
+
             album["photo_ids"].append(photo["id"])
             if photo.get("client_photo_id"):
                 album["client_photo_ids"].append(photo["client_photo_id"])
+            if album["cover_photo_id"] is None:
+                album["cover_photo_id"] = photo["id"]
+                album["cover_client_photo_id"] = photo.get("client_photo_id")
             album["photo_count"] += 1
 
-    return sorted(albums_by_name.values(), key=lambda item: item["name"].lower())
+    return sorted(
+        albums_by_key.values(),
+        key=lambda item: (0 if item["type"] == "tag" else 1, item["name"].lower()),
+    )
 
 
 class ImageUploadView(APIView):
-    """
-    Syncs client photos with the backend and returns the full device snapshot
-    grouped into albums defined by the requested tags.
-    """
-
     def post(self, request):
         device_id = str(request.data.get("device_id", "")).strip()
         if not device_id:
@@ -134,10 +283,7 @@ class ImageUploadView(APIView):
         for index, image_file in enumerate(images):
             client_photo_id = client_photo_ids[index]
             if not client_photo_id:
-                return Response(
-                    {"detail": "client_photo_id cannot be empty."},
-                    status=400,
-                )
+                return Response({"detail": "client_photo_id cannot be empty."}, status=400)
 
             processed_image = ProcessedImage.objects.filter(
                 device_id=device_id,
@@ -165,7 +311,7 @@ class ImageUploadView(APIView):
                 }
 
             try:
-                faces = detect_faces(image_path)
+                faces = _assign_face_numbers(device_id, detect_faces(image_path))
             except Exception as exc:
                 faces = []
                 description = result.get("description", "")
@@ -187,7 +333,7 @@ class ImageUploadView(APIView):
             {
                 "requested_tags": requested_tags,
                 "photos": serialized_photos,
-                "albums": _build_albums(serialized_photos),
+                "albums": _build_albums(serialized_photos, requested_tags),
                 "stats": {
                     "uploaded_count": uploaded_count,
                     "reused_count": reused_count,
@@ -195,4 +341,3 @@ class ImageUploadView(APIView):
                 },
             }
         )
-

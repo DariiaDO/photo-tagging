@@ -26,6 +26,9 @@ class PhotoViewModel(
     private val _tags = MutableLiveData<List<String>>()
     val tags: LiveData<List<String>> = _tags
 
+    private val _faceLabels = MutableLiveData<Map<Int, String>>(emptyMap())
+    val faceLabels: LiveData<Map<Int, String>> = _faceLabels
+
     private val _message = MutableLiveData<String?>()
     val message: LiveData<String?> = _message
 
@@ -40,6 +43,7 @@ class PhotoViewModel(
 
     fun loadInitialState() {
         _tags.value = repository.getTags()
+        _faceLabels.value = repository.getFaceLabels()
         loadPhotos()
     }
 
@@ -72,6 +76,7 @@ class PhotoViewModel(
                 repository.getAll() to result
             }.onSuccess { (photos, result) ->
                 _photos.value = photos
+                _faceLabels.value = repository.getFaceLabels()
                 _syncCompleted.value = true
                 _message.value = buildSuccessMessage(result)
             }.onFailure { throwable ->
@@ -103,6 +108,16 @@ class PhotoViewModel(
         _tags.value = updated
     }
 
+    fun renameFace(faceNumber: Int, label: String) {
+        repository.saveFaceLabel(faceNumber, label)
+        _faceLabels.value = repository.getFaceLabels()
+    }
+
+    fun resetFaceName(faceNumber: Int) {
+        repository.saveFaceLabel(faceNumber, null)
+        _faceLabels.value = repository.getFaceLabels()
+    }
+
     fun resetUploadMarkers() {
         viewModelScope.launch {
             repository.clearUploadMarkers()
@@ -110,6 +125,12 @@ class PhotoViewModel(
             _message.value = "Метки отправки очищены"
         }
     }
+
+    fun displayAlbumTitle(albumKey: String): String {
+        return repository.displayAlbumTitle(albumKey, _faceLabels.value.orEmpty())
+    }
+
+    fun parseFaceNumber(albumKey: String): Int? = repository.parseFaceNumber(albumKey)
 
     fun consumeMessage() {
         _message.value = null
@@ -120,7 +141,11 @@ class PhotoViewModel(
     }
 
     private fun buildSuccessMessage(result: PhotoRepository.SyncResult): String {
-        return "Синхронизация завершена. Новых: ${result.uploadedCount}, пропущено: ${result.reusedCount}, всего на сервере: ${result.totalCount}"
+        return if (result.syncedSelectionCount > 0) {
+            "Фото отправлены на сервер. Отправлено: ${result.syncedSelectionCount}, всего на сервере: ${result.totalCount}"
+        } else {
+            "Альбомы обновлены. Всего на сервере: ${result.totalCount}"
+        }
     }
 
     private fun Throwable.toUserMessage(): String {
@@ -130,4 +155,3 @@ class PhotoViewModel(
         }
     }
 }
-

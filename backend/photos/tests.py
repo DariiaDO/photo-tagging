@@ -1,10 +1,11 @@
-from types import SimpleNamespace
+﻿from types import SimpleNamespace
 
+import numpy as np
 from django.test import SimpleTestCase
 
-from .services.face_service import _normalize_bbox, _normalize_face
+from .services.face_service import _normalize_bbox, _normalize_embedding, _normalize_face
 from .services.vision_api import _extract_description_from_response
-from .views import OTHER_ALBUM_NAME, _build_albums, _match_requested_tags
+from .views import OTHER_ALBUM_NAME, _build_albums, _has_embedding, _match_requested_tags
 
 
 class LlavaResponseParsingTests(SimpleTestCase):
@@ -52,6 +53,66 @@ class FaceServiceNormalizationTests(SimpleTestCase):
             },
         )
 
+    def test_normalize_embedding_returns_unit_vector(self):
+        self.assertEqual(
+            _normalize_embedding([3.0, 4.0]),
+            [0.6, 0.8],
+        )
+
+    def test_normalize_face_returns_bbox_score_and_embedding(self):
+        face = SimpleNamespace(
+            bbox=[12, 18, 44, 66],
+            det_score=0.987654321,
+            age=27,
+            gender=1,
+            normed_embedding=[0.5, 0.5],
+        )
+        self.assertEqual(
+            _normalize_face(face),
+            {
+                "bbox": {
+                    "x1": 12,
+                    "y1": 18,
+                    "x2": 44,
+                    "y2": 66,
+                    "width": 32,
+                    "height": 48,
+                },
+                "det_score": 0.987654,
+                "gender": 1,
+                "age": 27,
+                "embedding": [0.70710678, 0.70710678],
+            },
+        )
+
+    def test_normalize_face_supports_numpy_normed_embedding(self):
+        face = SimpleNamespace(
+            bbox=[12, 18, 44, 66],
+            det_score=0.9,
+            normed_embedding=np.array([0.5, 0.5]),
+        )
+        self.assertEqual(
+            _normalize_face(face),
+            {
+                "bbox": {
+                    "x1": 12,
+                    "y1": 18,
+                    "x2": 44,
+                    "y2": 66,
+                    "width": 32,
+                    "height": 48,
+                },
+                "det_score": 0.9,
+                "embedding": [0.70710678, 0.70710678],
+            },
+        )
+
+
+class FaceEmbeddingHelpersTests(SimpleTestCase):
+    def test_has_embedding_supports_numpy_arrays(self):
+        self.assertTrue(_has_embedding({"embedding": np.array([0.1, 0.2, 0.3])}))
+        self.assertFalse(_has_embedding({"embedding": np.array([])}))
+
 
 class AlbumGroupingTests(SimpleTestCase):
     def test_requested_tag_matching_can_return_multiple_albums(self):
@@ -90,27 +151,42 @@ class AlbumGroupingTests(SimpleTestCase):
             ["Животные", "Путешествия"],
         )
 
-    def test_build_albums_uses_album_names_without_duplication(self):
+    def test_build_albums_includes_face_albums(self):
         albums = _build_albums(
             [
                 {
                     "id": 1,
                     "client_photo_id": "uri://1",
-                    "album_names": ["Dog", "Travel"],
+                    "album_keys": ["tag:Животные", "face:2"],
                 },
                 {
                     "id": 2,
                     "client_photo_id": "uri://2",
-                    "album_names": ["Travel"],
+                    "album_keys": ["face:2"],
                 },
-            ]
+            ],
+            ["Животные"],
         )
 
         self.assertEqual(
             albums,
             [
                 {
-                    "name": "Dog",
+                    "key": "tag:Другое",
+                    "name": "Другое",
+                    "type": "tag",
+                    "face_number": None,
+                    "photo_ids": [],
+                    "client_photo_ids": [],
+                    "cover_photo_id": None,
+                    "cover_client_photo_id": None,
+                    "photo_count": 0,
+                },
+                {
+                    "key": "tag:Животные",
+                    "name": "Животные",
+                    "type": "tag",
+                    "face_number": None,
                     "photo_ids": [1],
                     "client_photo_ids": ["uri://1"],
                     "cover_photo_id": 1,
@@ -118,7 +194,10 @@ class AlbumGroupingTests(SimpleTestCase):
                     "photo_count": 1,
                 },
                 {
-                    "name": "Travel",
+                    "key": "face:2",
+                    "name": "Лицо #2",
+                    "type": "face",
+                    "face_number": 2,
                     "photo_ids": [1, 2],
                     "client_photo_ids": ["uri://1", "uri://2"],
                     "cover_photo_id": 1,
@@ -126,28 +205,4 @@ class AlbumGroupingTests(SimpleTestCase):
                     "photo_count": 2,
                 },
             ],
-        )
-
-    def test_normalize_face_returns_bbox_and_score(self):
-        face = SimpleNamespace(
-            bbox=[12, 18, 44, 66],
-            det_score=0.987654321,
-            age=27,
-            gender=1,
-        )
-        self.assertEqual(
-            _normalize_face(face),
-            {
-                "bbox": {
-                    "x1": 12,
-                    "y1": 18,
-                    "x2": 44,
-                    "y2": 66,
-                    "width": 32,
-                    "height": 48,
-                },
-                "det_score": 0.987654,
-                "gender": 1,
-                "age": 27,
-            },
         )

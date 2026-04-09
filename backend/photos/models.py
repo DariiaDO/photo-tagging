@@ -1,4 +1,40 @@
-from django.db import models
+﻿from django.db import models
+
+
+class FaceIdentity(models.Model):
+    device_id = models.CharField(
+        max_length=100,
+        verbose_name="Device ID",
+        db_index=True,
+    )
+
+    number = models.PositiveIntegerField(
+        verbose_name="Face number",
+    )
+
+    embedding = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Face embedding",
+        help_text="Normalized embedding used to match faces across photos.",
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Created at",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("device_id", "number"),
+                name="photos_faceidentity_device_number_unique",
+            )
+        ]
+        ordering = ("number",)
+
+    def __str__(self):
+        return f"Face #{self.number} ({self.device_id})"
 
 
 class ProcessedImage(models.Model):

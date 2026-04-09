@@ -22,7 +22,7 @@ interface PhotoDao {
         SELECT * FROM photos
         WHERE description LIKE '%' || :query || '%'
         OR tags LIKE '%' || :query || '%'
-        OR albumNames LIKE '%' || :query || '%'
+        OR faceNumbers LIKE '%' || :query || '%'
         ORDER BY uri ASC
         """
     )
@@ -36,9 +36,10 @@ interface PhotoDao {
         UPDATE photos
         SET isUploaded = 0,
             serverId = NULL,
-            albumNames = '[]'
+            albumNames = '[]',
+            albumKeys = '[]',
+            faceNumbers = '[]'
         """
     )
     suspend fun resetUploadMarkers()
 }
-

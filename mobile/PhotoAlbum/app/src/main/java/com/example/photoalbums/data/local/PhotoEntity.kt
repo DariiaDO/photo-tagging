@@ -10,9 +10,10 @@ data class PhotoEntity(
     val description: String,
     val tags: List<String>,
     val albumNames: List<String> = emptyList(),
+    val albumKeys: List<String> = emptyList(),
+    val faceNumbers: List<Int> = emptyList(),
     val isUploaded: Boolean = false,
     val category: String = "unknown",
     val imageUrl: String? = null,
     val faceCount: Int = 0
 )
-
