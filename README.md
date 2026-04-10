@@ -1,46 +1,22 @@
 # Photo App
 
-Monorepo with two parts:
+Monorepo with:
 
-- `backend/` - Django + Django REST Framework API for photo upload and image analysis.
-- `mobile/PhotoAlbum/` - Android application for browsing photos and working with analyzed results.
+- `backend/` - Django + Django REST Framework API for upload, tagging, albums, and face grouping.
+- `mobile/PhotoAlbum/` - Android client.
+- `llava_service/` - local FastAPI inference service for image description.
 
-## Project Structure
+## Target Production Topology
 
 ```text
-photo-app/
-|-- backend/
-|   |-- manage.py
-|   |-- requirements.txt
-|   |-- photo_tagging_api/
-|   `-- photos/
-`-- mobile/
-    `-- PhotoAlbum/
+mobile app -> nginx -> django
+                   django -> llava_service
+                   django -> postgres
 ```
 
-## Backend
+`nginx` is the only external entrypoint. `llava_service` stays internal and serves `POST /analyze` for Django.
 
-The backend:
-
-- accepts image uploads;
-- stores uploaded files in `backend/media/`;
-- saves analysis results in SQLite;
-- sends images to an external LLaVA endpoint and extracts tags/category/description;
-- can detect faces with InsightFace and store face coordinates.
-
-### Stack
-
-- Python
-- Django
-- Django REST Framework
-- Pillow
-- requests
-- deep-translator
-- InsightFace
-- ONNX Runtime
-- OpenCV
-
-### Run Locally
+## Local Backend Development
 
 ```powershell
 cd backend
@@ -51,114 +27,90 @@ python manage.py migrate
 python manage.py runserver 0.0.0.0:8080
 ```
 
-API base URL in local development:
+By default Django uses SQLite locally. To enable Postgres, set `USE_POSTGRES=1` and the `POSTGRES_*` variables.
 
-```text
-http://127.0.0.1:8080/
+## Self-Hosted Deployment
+
+1. Copy `.env.example` to `.env` and fill in real values.
+2. Ensure Docker, Docker Compose plugin, NVIDIA drivers, and NVIDIA Container Toolkit are installed on the GPU server.
+3. Start the stack:
+
+```bash
+cp .env.example .env
+docker compose build
+docker compose up -d
 ```
 
-Main upload endpoint:
+4. Check services:
 
-```text
-POST /api/upload/
+```bash
+docker compose ps
+docker compose logs -f django
+docker compose logs -f llava
 ```
 
-Multipart fields:
+## Services
 
-- `images` - one or more image files
-- `client_photo_ids` - optional repeated field to map response items to local records
+### `django`
 
-### Environment Variables
+- runs migrations on startup;
+- collects static files into a shared volume;
+- serves API through `gunicorn`;
+- stores uploaded images in `/app/media`.
 
-The backend reads these variables:
+### `llava_service`
 
-- `LLAVA_COLAB_URL` - external endpoint for image analysis
-- `LLAVA_PROMPT` - custom prompt sent to the model
-- `LLAVA_TIMEOUT_SECONDS` - request timeout
-- `LLAVA_AUTH_TOKEN` - bearer token for the analysis service
-- `FACE_DETECTION_ENABLED` - enables server-side face detection
-- `FACE_ANALYSIS_MODEL_NAME` - InsightFace model pack name, for example `buffalo_l`
-- `FACE_ANALYSIS_PROVIDERS` - ONNX Runtime providers, for example `CPUExecutionProvider`
-- `FACE_ANALYSIS_DET_WIDTH` - detector width, default `640`
-- `FACE_ANALYSIS_DET_HEIGHT` - detector height, default `640`
+- FastAPI service with `GET /health` and `POST /analyze`;
+- loads `llava-hf/llava-1.5-7b-hf` by default;
+- can run in 4-bit mode with `LLAVA_LOAD_IN_4BIT=1`;
+- accepts multipart `image` and `prompt`;
+- returns JSON with `description`.
 
-Example:
+### `postgres`
 
-```powershell
-$env:LLAVA_COLAB_URL="https://your-endpoint.example/analyze"
-$env:LLAVA_TIMEOUT_SECONDS="120"
-$env:FACE_DETECTION_ENABLED="1"
-python manage.py runserver 0.0.0.0:8080
-```
+- production database for Django;
+- mounted on a named Docker volume.
 
-When face detection is enabled, each upload response also includes:
+### `nginx`
 
-- `faces` - list of detected faces with bounding boxes and confidence
-- `face_count` - number of faces found in the image
+- reverse proxy for Django;
+- serves `/static/` and `/media/` from Docker volumes.
 
-## Mobile App
+## Important Environment Variables
 
-Android app located in `mobile/PhotoAlbum/`.
+- `DJANGO_SECRET_KEY`
+- `DJANGO_DEBUG`
+- `DJANGO_ALLOWED_HOSTS`
+- `USE_POSTGRES`
+- `POSTGRES_DB`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- `POSTGRES_HOST`
+- `POSTGRES_PORT`
+- `LLAVA_ENDPOINT_URL`
+- `LLAVA_MODEL_ID`
+- `LLAVA_LOAD_IN_4BIT`
+- `LLAVA_MAX_NEW_TOKENS`
+- `LLAVA_TIMEOUT_SECONDS`
+- `FACE_DETECTION_ENABLED`
 
-### Stack
+## API Endpoints
 
-- Kotlin
-- Android SDK
-- Room
-- Retrofit
-- OkHttp
-- Coil
+- `GET /api/health/`
+- `POST /api/upload/`
 
-### Open and Run
-
-1. Open `mobile/PhotoAlbum` in Android Studio.
-2. Sync Gradle.
-3. Set the backend URL if needed.
-4. Run the app on a device or emulator.
-
-The debug backend URL is configured through Gradle property:
-
-```text
-photoAlbumsDebugApiBaseUrl
-```
-
-Default value from the project:
-
-```text
-http://172.20.10.4:8080/
-```
-
-You can override it, for example in `~/.gradle/gradle.properties`:
-
-```properties
-photoAlbumsDebugApiBaseUrl=http://10.0.2.2:8080/
-```
-
-For Android Emulator, `10.0.2.2` usually points to the host machine.
-
-## Local Data
-
-The repository currently contains local runtime artifacts such as:
-
-- SQLite database files
-- uploaded media
-- Python cache
-- Android build output
-
-They should stay out of version control. The root `.gitignore` is configured for that.
-
-## Useful Commands
+## Tests
 
 Backend tests:
 
 ```powershell
 cd backend
-python manage.py test
+python manage.py test photos
 ```
 
-Android debug build:
+Android unit tests:
 
 ```powershell
 cd mobile\PhotoAlbum
-.\gradlew.bat assembleDebug
+.\gradlew.bat testDebugUnitTest
 ```

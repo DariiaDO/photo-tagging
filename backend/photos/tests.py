@@ -2,9 +2,21 @@
 
 import numpy as np
 from django.test import SimpleTestCase
+from django.test.utils import override_settings
 
-from .services.face_service import _normalize_bbox, _normalize_embedding, _normalize_face
-from .services.vision_api import _extract_description_from_response
+from .services.face_service import (
+    _normalize_bbox,
+    _normalize_embedding,
+    _normalize_face,
+    _should_keep_face,
+)
+from .services.vision_api import (
+    _extract_base_tags,
+    _extract_description_from_response,
+    _get_base_tags,
+    _should_keep_animals_tag,
+    _should_keep_people_tag,
+)
 from .views import OTHER_ALBUM_NAME, _build_albums, _has_embedding, _match_requested_tags
 
 
@@ -107,6 +119,51 @@ class FaceServiceNormalizationTests(SimpleTestCase):
             },
         )
 
+    @override_settings(FACE_MIN_SIZE_PX=48, FACE_MIN_AREA_RATIO=0.0025)
+    def test_should_keep_face_rejects_tiny_background_face(self):
+        self.assertFalse(
+            _should_keep_face(
+                {"width": 30, "height": 36},
+                image_width=1600,
+                image_height=1200,
+            )
+        )
+
+    @override_settings(FACE_MIN_SIZE_PX=48, FACE_MIN_AREA_RATIO=0.0025)
+    def test_should_keep_face_accepts_large_face(self):
+        self.assertTrue(
+            _should_keep_face(
+                {"width": 140, "height": 160},
+                image_width=1600,
+                image_height=1200,
+            )
+        )
+
+
+class VisionPromptHeuristicsTests(SimpleTestCase):
+    def test_people_tag_is_removed_for_body_part_only(self):
+        self.assertFalse(_should_keep_people_tag("A close-up of a hand holding a cup."))
+
+    def test_animals_tag_is_removed_for_toy(self):
+        self.assertFalse(_should_keep_animals_tag("A plush dog toy on a shelf."))
+
+    def test_animals_tag_is_kept_for_real_animal(self):
+        self.assertTrue(_should_keep_animals_tag("A dog is running across the grass."))
+
+    def test_extract_base_tags_skips_people_for_hand_only_caption(self):
+        tags = _extract_base_tags(
+            "A hand holding a phone near a window.",
+            _get_base_tags(),
+        )
+        self.assertNotIn("people", tags)
+
+    def test_extract_base_tags_skips_animals_for_plush_toy_caption(self):
+        tags = _extract_base_tags(
+            "A plush dog toy sitting on a bed.",
+            _get_base_tags(),
+        )
+        self.assertNotIn("animals", tags)
+
 
 class FaceEmbeddingHelpersTests(SimpleTestCase):
     def test_has_embedding_supports_numpy_arrays(self):
@@ -125,6 +182,18 @@ class AlbumGroupingTests(SimpleTestCase):
         self.assertEqual(
             _match_requested_tags(photo, ["Dog", "Sea", "Portrait"]),
             ["Dog", "Sea"],
+        )
+
+    def test_requested_tag_matching_prioritizes_category_before_other_tags(self):
+        photo = SimpleNamespace(
+            category="travel",
+            description="A dog sits in a car near the sea.",
+            tags=["dog", "sea", "vacation"],
+        )
+
+        self.assertEqual(
+            _match_requested_tags(photo, ["Животные", "Путешествия"]),
+            ["Путешествия", "Животные"],
         )
 
     def test_requested_tag_matching_falls_back_to_other_album(self):
@@ -148,7 +217,31 @@ class AlbumGroupingTests(SimpleTestCase):
 
         self.assertEqual(
             _match_requested_tags(photo, ["Животные", "Путешествия"]),
-            ["Животные", "Путешествия"],
+            ["Путешествия", "Животные"],
+        )
+
+    def test_requested_tag_matching_supports_english_requested_tag_for_russian_category(self):
+        photo = SimpleNamespace(
+            category="животные",
+            description="Собака сидит на траве.",
+            tags=["собака"],
+        )
+
+        self.assertEqual(
+            _match_requested_tags(photo, ["Animals", "Travel"]),
+            ["Animals"],
+        )
+
+    def test_requested_tag_matching_supports_russian_requested_tag_for_english_category(self):
+        photo = SimpleNamespace(
+            category="transport",
+            description="A train arrives at the station.",
+            tags=["train", "station"],
+        )
+
+        self.assertEqual(
+            _match_requested_tags(photo, ["Транспорт", "Путешествия"]),
+            ["Транспорт"],
         )
 
     def test_build_albums_includes_face_albums(self):

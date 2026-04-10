@@ -1,0 +1,54 @@
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - django
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_data:/var/www/static
+      - media_data:/var/www/media
+
+  django:
+    build:
+      context: ./backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      llava:
+        condition: service_started
+    env_file:
+      - .env
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  llava:
+    build:
+      context: ./llava_service
+    env_file:
+      - .env
+    gpus: all
+    volumes:
+      - huggingface_cache:/data/huggingface
+
+volumes:
+  postgres_data:
+  media_data:
+  static_data:
+  huggingface_cache:

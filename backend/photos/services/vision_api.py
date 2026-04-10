@@ -67,6 +67,49 @@ NON_PROMINENT_PEOPLE_PATTERNS = [
     r"\\bтолпа\\b",
 ]
 
+NON_REAL_ANIMAL_PATTERNS = [
+    r"\btoy animal\b",
+    r"\bstuffed animal\b",
+    r"\bplush animal\b",
+    r"\btoy dog\b",
+    r"\btoy cat\b",
+    r"\bplush dog\b",
+    r"\bplush cat\b",
+    r"\bteddy\b",
+    r"\bdoll\b",
+    r"\bfigurine\b",
+    r"\bstatue\b",
+    r"\billustration of a dog\b",
+    r"\billustration of a cat\b",
+    r"\bcartoon dog\b",
+    r"\bcartoon cat\b",
+    r"\bигрушечн\w+\b",
+    r"\bплюшев\w+\b",
+    r"\bмягк\w+ игрушк\w+\b",
+    r"\bкукл\w+\b",
+    r"\bстатуэтк\w+\b",
+]
+
+REAL_ANIMAL_PATTERNS = [
+    r"\blive animal\b",
+    r"\breal animal\b",
+    r"\breal dog\b",
+    r"\breal cat\b",
+    r"\bdog\b",
+    r"\bcat\b",
+    r"\bbird\b",
+    r"\bhorse\b",
+    r"\bpuppy\b",
+    r"\bkitten\b",
+    r"\bpet\b",
+    r"\bживотн\w+\b",
+    r"\bсобак\w+\b",
+    r"\bкошк\w+\b",
+    r"\bкот\w*\b",
+    r"\bптиц\w+\b",
+    r"\bлошад\w+\b",
+]
+
 PROMINENT_PEOPLE_PATTERNS = [
     r"\\bportrait\\b",
     r"\\bclose[- ]?up\\b",
@@ -96,7 +139,8 @@ def _get_prompt() -> str:
         settings,
         "LLAVA_PROMPT",
         "Describe the image in detail in English in 3-5 sentences. "
-        "Mention the main subject, setting, lighting, and key actions.",
+        "Focus on clearly visible primary subjects, the setting, lighting, and key actions. "
+        "Be literal and avoid guessing.",
     )
     return prompt.strip()
 
@@ -123,17 +167,25 @@ def _build_prompt(base_prompt: str, base_tags: list[str]) -> str:
         f"{base_prompt}\n\n"
         f"Preferred tag list: [{tags_line}]. "
         "Use these tags whenever they fit. If none apply, add the most relevant custom tags. "
-        "Only use the people tag when a person is a main, clearly visible subject occupying a meaningful part of the frame. "
-        "If only hands are visible, or people are tiny, distant, or only in the background, do not use the people tag. "
+        "Only use the people tag when a real person is a main, clearly visible subject occupying a meaningful part of the frame. "
+        "Do not use the people tag for only a hand, arm, leg, silhouette, reflection, mannequin, statue, poster, drawing, or any isolated body part. "
+        "If people are tiny, distant, heavily blurred, or only in the background, do not use the people tag. "
+        "Only use the animals tag for a real living animal that is clearly visible. "
+        "Do not tag animals for toys, plushies, figurines, statues, drawings, cartoons, costumes, or animal-shaped objects. "
+        "If unsure whether it is a real animal or a toy/object, prefer not to use the animals tag. "
+        "Prioritize the dominant foreground subject over small background details. "
         "Return the description in English."
     )
 
 
 def _get_endpoint() -> str:
-    endpoint = getattr(settings, "LLAVA_COLAB_URL", "").strip()
+    endpoint = getattr(settings, "LLAVA_ENDPOINT_URL", "").strip()
     if endpoint:
         return endpoint
-    return os.getenv("LLAVA_COLAB_URL", "").strip()
+    legacy_endpoint = getattr(settings, "LLAVA_COLAB_URL", "").strip()
+    if legacy_endpoint:
+        return legacy_endpoint
+    return os.getenv("LLAVA_ENDPOINT_URL", os.getenv("LLAVA_COLAB_URL", "")).strip()
 
 
 def _get_timeout_seconds() -> int:
@@ -194,12 +246,21 @@ def _should_keep_people_tag(caption: str) -> bool:
     return any(re.search(pattern, caption_lower) for pattern in PROMINENT_PEOPLE_PATTERNS)
 
 
+def _should_keep_animals_tag(caption: str) -> bool:
+    caption_lower = caption.lower()
+    if any(re.search(pattern, caption_lower) for pattern in NON_REAL_ANIMAL_PATTERNS):
+        return False
+    return any(re.search(pattern, caption_lower) for pattern in REAL_ANIMAL_PATTERNS)
+
+
 def _extract_base_tags(caption: str, base_tags: list[str]) -> list[str]:
     caption_lower = caption.lower()
     result: list[str] = []
 
     for tag in base_tags:
         if tag == "people" and not _should_keep_people_tag(caption):
+            continue
+        if tag == "animals" and not _should_keep_animals_tag(caption):
             continue
         keywords = TAG_KEYWORDS.get(tag, {tag})
         if any(keyword in caption_lower for keyword in keywords):
@@ -272,7 +333,7 @@ def analyze_image_llava(image_path: str) -> dict:
         return {
             "tags": [],
             "category": "unknown",
-            "description": "LLaVA endpoint is not configured. Set LLAVA_COLAB_URL in settings.py.",
+            "description": "LLaVA endpoint is not configured. Set LLAVA_ENDPOINT_URL in the environment.",
         }
 
     headers = {}
@@ -305,7 +366,7 @@ def analyze_image_llava(image_path: str) -> dict:
                 detail = f" Response: {exc.response.text[:500]}"
             raise RuntimeError(
                 f"LLaVA request failed: {exc}."
-                f"{detail} Check LLAVA_COLAB_URL, endpoint availability, and timeout."
+                f"{detail} Check LLAVA_ENDPOINT_URL, service availability, and timeout."
             ) from exc
 
     try:

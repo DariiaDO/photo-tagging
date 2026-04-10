@@ -13,17 +13,79 @@ OTHER_ALBUM_NAME = "Другое"
 FACE_ALBUM_PREFIX = "face:"
 TAG_ALBUM_PREFIX = "tag:"
 FACE_MATCH_THRESHOLD = 0.45
-TAG_ALIASES = {
-    "люди": ["люди", "человек", "людей", "person", "people", "portrait", "face", "man", "woman", "child"],
-    "природа": ["природа", "nature", "outdoor", "landscape", "forest", "tree", "sky", "sea", "beach", "mountain"],
-    "животные": ["животные", "animal", "animals", "dog", "cat", "bird", "horse", "pet"],
-    "еда": ["еда", "food", "meal", "dish", "drink", "fruit", "restaurant", "dessert"],
-    "путешествия": ["путешествия", "travel", "trip", "vacation", "tourism", "journey", "landmark", "hotel"],
+CANONICAL_TAG_ALIASES = {
+    "people": {
+        "people", "person", "portrait", "face", "man", "woman", "child",
+        "люди", "человек", "людей", "мужчина", "женщина", "ребенок", "ребёнок", "лицо", "портрет",
+    },
+    "nature": {
+        "nature", "outdoor", "landscape", "forest", "tree", "sky", "sea", "beach", "mountain",
+        "природа", "лес", "дерево", "небо", "море", "пляж", "гора", "пейзаж",
+    },
+    "animals": {
+        "animals", "animal", "dog", "cat", "bird", "horse", "pet",
+        "животные", "животное", "собака", "кот", "кошка", "птица", "лошадь", "питомец",
+    },
+    "food": {
+        "food", "meal", "dish", "drink", "fruit", "restaurant", "dessert",
+        "еда", "блюдо", "напиток", "фрукт", "ресторан", "десерт",
+    },
+    "travel": {
+        "travel", "trip", "vacation", "tourism", "journey", "landmark", "hotel",
+        "путешествия", "путешествие", "поездка", "отпуск", "туризм", "отель", "достопримечательность",
+    },
+    "transport": {
+        "transport", "car", "vehicle", "train", "bus", "bike", "bicycle", "road",
+        "транспорт", "машина", "автомобиль", "поезд", "автобус", "велосипед", "дорога",
+    },
+    "interior": {
+        "interior", "room", "office", "kitchen", "bedroom", "table", "chair", "sofa",
+        "интерьер", "комната", "офис", "кухня", "спальня", "стол", "стул", "диван",
+    },
+    "city": {
+        "city", "street", "building", "traffic",
+        "город", "улица", "здание", "трафик",
+    },
+    "architecture": {
+        "architecture", "facade", "bridge",
+        "архитектура", "фасад", "мост",
+    },
+    "clothing": {
+        "clothing", "fashion", "clothes", "dress", "shirt",
+        "одежда", "мода", "платье", "рубашка",
+    },
+    "sports": {
+        "sports", "sport", "game", "training", "stadium",
+        "спорт", "игра", "тренировка", "стадион",
+    },
+    "technology": {
+        "technology", "device", "computer", "phone", "laptop",
+        "технологии", "техника", "устройство", "компьютер", "телефон", "ноутбук",
+    },
+    "documents": {
+        "documents", "document", "text", "page", "table", "paper",
+        "документы", "документ", "текст", "страница", "таблица", "бумага",
+    },
+    "art": {
+        "art", "painting", "gallery", "museum", "sculpture",
+        "искусство", "картина", "галерея", "музей", "скульптура",
+    },
+    "night": {
+        "night", "dark", "lights",
+        "ночь", "темно", "темнота", "огни",
+    },
 }
 
 
 def _normalize_text(value: Any) -> str:
     return str(value or "").strip().lower()
+
+
+ALIAS_TO_CANONICAL = {
+    alias: canonical
+    for canonical, aliases in CANONICAL_TAG_ALIASES.items()
+    for alias in aliases
+}
 
 
 def _album_key(album_type: str, value: str | int) -> str:
@@ -53,6 +115,24 @@ def _parse_requested_tags(raw_value: Any) -> list[str]:
         if tag and tag not in normalized_tags:
             normalized_tags.append(tag)
     return normalized_tags
+
+
+def _get_aliases_for_value(value: Any) -> set[str]:
+    normalized = _normalize_text(value)
+    if not normalized:
+        return set()
+
+    canonical = ALIAS_TO_CANONICAL.get(normalized, normalized)
+    aliases = set(CANONICAL_TAG_ALIASES.get(canonical, set()))
+    aliases.add(normalized)
+    aliases.add(canonical)
+    return {alias for alias in aliases if alias}
+
+
+def _matches_by_alias(haystacks: list[str], aliases: set[str]) -> bool:
+    if not aliases:
+        return False
+    return any(alias in haystack for alias in aliases for haystack in haystacks if haystack)
 
 
 def _cosine_distance(left: list[float], right: list[float]) -> float:
@@ -110,23 +190,30 @@ def _assign_face_numbers(device_id: str, faces: list[dict[str, Any]]) -> list[di
 
 
 def _match_requested_tags(photo: ProcessedImage, requested_tags: list[str]) -> list[str]:
-    haystacks = [
-        _normalize_text(photo.category),
-        _normalize_text(photo.description),
-        *[_normalize_text(tag) for tag in (photo.tags or [])],
-    ]
+    category_haystack = _normalize_text(photo.category)
+    tags_haystacks = [_normalize_text(tag) for tag in (photo.tags or [])]
+    description_haystack = _normalize_text(photo.description)
+    secondary_haystacks = [*tags_haystacks, description_haystack]
 
-    matched_tags = []
+    category_matches: list[str] = []
+    secondary_matches: list[str] = []
+
     for requested_tag in requested_tags:
         tag = requested_tag.strip()
-        normalized_tag = tag.lower()
-        if not normalized_tag:
+        if not tag:
             continue
 
-        aliases = TAG_ALIASES.get(normalized_tag, [normalized_tag])
-        if any(alias in haystack for alias in aliases for haystack in haystacks if haystack):
-            matched_tags.append(tag)
+        aliases = _get_aliases_for_value(tag)
+        if category_haystack and _matches_by_alias([category_haystack], aliases):
+            if tag not in category_matches:
+                category_matches.append(tag)
+            continue
 
+        if _matches_by_alias(secondary_haystacks, aliases):
+            if tag not in secondary_matches:
+                secondary_matches.append(tag)
+
+    matched_tags = category_matches + [tag for tag in secondary_matches if tag not in category_matches]
     return matched_tags or [OTHER_ALBUM_NAME]
 
 
@@ -341,3 +428,11 @@ class ImageUploadView(APIView):
                 },
             }
         )
+
+
+class HealthCheckView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        return Response({"status": "ok"})

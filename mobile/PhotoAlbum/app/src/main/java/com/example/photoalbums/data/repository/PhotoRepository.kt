@@ -88,8 +88,6 @@ class PhotoRepository(
     }
 
     fun buildAlbums(photos: List<PhotoEntity>): List<AlbumDescriptor> {
-        val labels = getFaceLabels()
-        val tagAlbumsByKey = linkedMapOf<String, MutableList<PhotoEntity>>()
         val facePhotos = mutableListOf<PhotoEntity>()
 
         photos.forEach { photo ->
@@ -97,7 +95,6 @@ class PhotoRepository(
             photo.albumKeys.distinct().forEach { key ->
                 when {
                     parseFaceNumber(key) != null -> hasFace = true
-                    key.startsWith(TAG_PREFIX) -> tagAlbumsByKey.getOrPut(key) { mutableListOf() }.add(photo)
                 }
             }
             if (hasFace) {
@@ -105,15 +102,7 @@ class PhotoRepository(
             }
         }
 
-        val tagAlbums = tagAlbumsByKey.map { (key, albumPhotos) ->
-            AlbumDescriptor(
-                key = key,
-                title = key.substringAfter(TAG_PREFIX),
-                photoCount = albumPhotos.size,
-                coverUri = albumPhotos.firstOrNull()?.imageUrl ?: albumPhotos.firstOrNull()?.uri,
-                type = TYPE_TAG
-            )
-        }
+        val tagAlbums = buildTagAlbumDescriptors(photos, getTags())
 
         val faceAlbum = if (facePhotos.isNotEmpty()) {
             listOf(
@@ -194,10 +183,47 @@ class PhotoRepository(
     companion object {
         private const val TAG_PREFIX = "tag:"
         private const val FACE_PREFIX = "face:"
+        private const val OTHER_ALBUM_TITLE = "Другое"
         const val FACES_INDEX_KEY = "faces:index"
         const val FACES_INDEX_TITLE = "Лица"
         const val TYPE_TAG = "tag"
         const val TYPE_FACE = "face"
         const val TYPE_FACES_INDEX = "faces_index"
+
+        internal fun buildTagAlbumDescriptors(
+            photos: List<PhotoEntity>,
+            requestedTags: List<String>
+        ): List<AlbumDescriptor> {
+            val tagAlbumsByKey = linkedMapOf<String, MutableList<PhotoEntity>>()
+
+            photos.forEach { photo ->
+                photo.albumKeys.distinct().forEach { key ->
+                    if (key.startsWith(TAG_PREFIX)) {
+                        tagAlbumsByKey.getOrPut(key) { mutableListOf() }.add(photo)
+                    }
+                }
+            }
+
+            requestedTags
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+                .map { "$TAG_PREFIX$it" }
+                .forEach { key ->
+                    tagAlbumsByKey.putIfAbsent(key, mutableListOf())
+                }
+
+            return tagAlbumsByKey
+                .filterNot { (key, albumPhotos) -> key == "$TAG_PREFIX$OTHER_ALBUM_TITLE" && albumPhotos.isEmpty() }
+                .map { (key, albumPhotos) ->
+                    AlbumDescriptor(
+                        key = key,
+                        title = key.substringAfter(TAG_PREFIX),
+                        photoCount = albumPhotos.size,
+                        coverUri = albumPhotos.firstOrNull()?.imageUrl ?: albumPhotos.firstOrNull()?.uri,
+                        type = TYPE_TAG
+                    )
+                }
+        }
     }
 }

@@ -93,6 +93,42 @@ def _normalize_face(face: Any) -> dict[str, Any]:
     return data
 
 
+def _get_face_min_size_px() -> int:
+    value = getattr(settings, "FACE_MIN_SIZE_PX", 48)
+    try:
+        size = int(value)
+    except (TypeError, ValueError):
+        size = 48
+    return max(0, size)
+
+
+def _get_face_min_area_ratio() -> float:
+    value = getattr(settings, "FACE_MIN_AREA_RATIO", 0.0025)
+    try:
+        ratio = float(value)
+    except (TypeError, ValueError):
+        ratio = 0.0025
+    return max(0.0, ratio)
+
+
+def _should_keep_face(bbox: dict[str, int], image_width: int, image_height: int) -> bool:
+    if image_width <= 0 or image_height <= 0:
+        return False
+
+    min_size_px = _get_face_min_size_px()
+    min_area_ratio = _get_face_min_area_ratio()
+    width = max(0, int(bbox.get("width", 0)))
+    height = max(0, int(bbox.get("height", 0)))
+    area = width * height
+    image_area = image_width * image_height
+
+    if width < min_size_px or height < min_size_px:
+        return False
+    if image_area > 0 and (area / image_area) < min_area_ratio:
+        return False
+    return True
+
+
 def detect_faces(image_path: str) -> list[dict[str, Any]]:
     if not getattr(settings, "FACE_DETECTION_ENABLED", False):
         return []
@@ -107,5 +143,11 @@ def detect_faces(image_path: str) -> list[dict[str, Any]]:
     if image is None:
         raise RuntimeError("Could not read image for face detection.")
 
+    image_height, image_width = image.shape[:2]
     faces = app.get(image)
-    return [_normalize_face(face) for face in faces]
+    normalized_faces = [_normalize_face(face) for face in faces]
+    return [
+        face
+        for face in normalized_faces
+        if _should_keep_face(face["bbox"], image_width, image_height)
+    ]
