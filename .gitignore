@@ -28,7 +28,6 @@ backend/staticfiles/
 
 # Environment files
 .env
-.env.*
 
 # Android / Gradle
 .gradle/
@@ -51,6 +50,7 @@ captures/
 Thumbs.db
 
 # Test / tooling cache
+backend/photos/tmp*/
 .pytest_cache/
 .mypy_cache/
 .coverage

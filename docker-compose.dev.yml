@@ -1,0 +1,21 @@
+services:
+  django:
+    environment:
+      DJANGO_DEBUG: "1"
+      USE_POSTGRES: "0"
+      LLAVA_ENDPOINT_URL: "http://llava:8001/analyze"
+    ports:
+      - "${DJANGO_DEV_PORT:-8080}:8080"
+    volumes:
+      - ./backend:/app
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8080"]
+
+  llava:
+    ports:
+      - "${LLAVA_DEV_PORT:-8001}:8001"
+    environment:
+      LOG_LEVEL: "INFO"
+
+  nginx:
+    profiles:
+      - prod

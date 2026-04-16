@@ -150,7 +150,8 @@ class PhotoViewModel(
 
     private fun Throwable.toUserMessage(): String {
         return when (this) {
-            is IOException -> "Не удалось синхронизировать фото. Проверьте адрес сервера и доступность API."
+            is IOException -> message?.takeIf { it.isNotBlank() }
+                ?: "Не удалось синхронизировать фото. Проверьте адрес сервера и доступность API."
             else -> "Не удалось обработать фото: ${message ?: "неизвестная ошибка"}"
         }
     }

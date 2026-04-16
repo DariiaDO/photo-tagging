@@ -1,0 +1,158 @@
+You are a senior backend + mobile engineer working on a production-ready AI photo tagging system.
+
+
+The system consists of:
+
+* Django REST backend (photo processing, tagging, face grouping)
+* FastAPI LLaVA service (image captioning)
+* Android client (Kotlin, Room, Retrofit)
+* Docker-based deployment
+
+Your task is to **improve the project to a near-production level WITHOUT rewriting it from scratch**.
+
+---
+
+## 🎯 Goals
+
+Improve architecture, API design, and reliability while preserving existing functionality.
+
+---
+
+## 🧩 Backend Improvements (Django)
+
+1. **Refactor API design**
+
+   * Split `/api/upload/` into:
+
+     * POST `/api/photos/upload/`
+     * GET `/api/photos/`
+     * GET `/api/albums/`
+     * GET `/api/faces/`
+   * Add serializers instead of manual dict building
+   * Use DRF ViewSets where appropriate
+
+2. **Add pagination and filtering**
+
+   * Pagination for photos
+   * Filter by:
+
+     * tags
+     * face_number
+     * category
+
+3. **Add basic authentication layer**
+
+   * Replace `device_id` with:
+
+     * either token-based auth OR
+     * keep device_id but validate format and uniqueness
+   * Prepare structure for future user accounts
+
+4. **Improve error handling**
+
+   * Standardize API responses:
+     {
+     "status": "error",
+     "message": "...",
+     "details": ...
+     }
+   * Catch and log LLaVA / face detection failures cleanly
+
+5. **Optimize face matching**
+
+   * Move cosine similarity logic into a separate service class
+   * Add caching or precomputed embeddings if possible
+
+6. **Code cleanup**
+
+   * Remove unused files (e.g. temporary scripts)
+   * Split large files like `views.py` into modules:
+
+     * services/
+     * selectors/
+     * serializers/
+
+---
+
+## 🤖 LLaVA Service Improvements (FastAPI)
+
+1. Add:
+
+   * request validation
+   * structured logging
+   * timeout handling
+
+2. Add `/analyze/batch` endpoint for multiple images
+
+3. Make model loading safer:
+
+   * fallback if GPU not available
+   * log model load time
+
+---
+
+## 📱 Android Improvements
+
+1. Improve API layer:
+
+   * Separate DTOs and domain models
+   * Add error handling for API failures
+
+2. Add loading states and error UI
+
+3. Improve album UX:
+
+   * separate screens for:
+
+     * tags
+     * faces
+   * better naming for face albums
+
+4. Clean architecture:
+
+   * split repository logic if too large
+   * add use-cases layer if needed
+
+---
+
+## 🐳 DevOps Improvements
+
+1. Improve docker setup:
+
+   * separate dev and prod configs
+   * environment variables via `.env`
+
+2. Add README section:
+
+   * how to run locally
+   * how to run with GPU
+
+---
+
+## 🧪 Testing
+
+1. Add:
+
+   * API tests for upload endpoint
+   * integration test (upload → process → response)
+
+---
+
+## ⚠️ Constraints
+
+* DO NOT break existing functionality
+* DO NOT remove core logic (face grouping, tagging)
+* DO NOT simplify ML parts
+* Keep code readable and structured
+
+---
+
+## ✅ Output format
+
+* Show:
+
+  * modified files
+  * new files
+  * explanations of changes
+
+Focus on **clean architecture, scalability, and clarity**.

@@ -1,9 +1,15 @@
 ﻿from types import SimpleNamespace
 
-import numpy as np
-from django.test import SimpleTestCase
-from django.test.utils import override_settings
+from pathlib import Path
+from unittest.mock import patch
 
+import numpy as np
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import SimpleTestCase, TestCase
+from django.test.utils import override_settings
+from rest_framework.test import APIClient
+
+from .models import ProcessedImage
 from .services.face_service import (
     _normalize_bbox,
     _normalize_embedding,
@@ -298,4 +304,93 @@ class AlbumGroupingTests(SimpleTestCase):
                     "photo_count": 2,
                 },
             ],
+        )
+
+
+class PhotoApiTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.media_root = Path(__file__).resolve().parent / "test_media"
+        self.override = override_settings(
+            MEDIA_ROOT=self.media_root,
+            FACE_DETECTION_ENABLED=True,
+        )
+        self.override.enable()
+
+    def tearDown(self):
+        self.override.disable()
+        for image_file in (self.media_root / "images").glob("*"):
+            if image_file.name != ".gitkeep":
+                image_file.unlink(missing_ok=True)
+
+    @patch("photos.api.detect_faces")
+    @patch("photos.api.analyze_image")
+    def test_upload_endpoint_processes_photo_and_returns_snapshot(self, analyze_image, detect_faces):
+        analyze_image.return_value = {
+            "tags": ["animals", "dog"],
+            "category": "animals",
+            "description": "A dog in a park.",
+        }
+        detect_faces.return_value = [
+            {
+                "bbox": {"x1": 0, "y1": 0, "x2": 80, "y2": 80, "width": 80, "height": 80},
+                "embedding": [1.0, 0.0],
+            }
+        ]
+
+        response = self.client.post(
+            "/api/photos/upload/",
+            data={
+                "device_id": "device-test-1",
+                "tags_json": '["Животные"]',
+                "client_photo_ids": ["content://photo/1"],
+                "images": [self._image("dog.gif")],
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["stats"]["uploaded_count"], 1)
+        self.assertEqual(response.data["photos"][0]["client_photo_id"], "content://photo/1")
+        self.assertEqual(response.data["photos"][0]["face_numbers"], [1])
+        self.assertEqual(ProcessedImage.objects.count(), 1)
+
+    def test_photo_list_requires_valid_device_id(self):
+        response = self.client.get("/api/photos/", {"device_id": "bad"})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["status"], "error")
+
+    def test_photo_list_filters_by_category(self):
+        ProcessedImage.objects.create(
+            device_id="device-test-2",
+            client_photo_id="photo-1",
+            category="animals",
+            tags=["dog"],
+            description="A dog.",
+        )
+        ProcessedImage.objects.create(
+            device_id="device-test-2",
+            client_photo_id="photo-2",
+            category="food",
+            tags=["cake"],
+            description="A cake.",
+        )
+
+        response = self.client.get(
+            "/api/photos/",
+            {"device_id": "device-test-2", "category": "animals"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["client_photo_id"], "photo-1")
+
+    def _image(self, name: str):
+        return SimpleUploadedFile(
+            name,
+            b"\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00"
+            b"\xff\xff\xff\x21\xf9\x04\x01\x00\x00\x00\x00\x2c\x00\x00\x00\x00"
+            b"\x01\x00\x01\x00\x00\x02\x02\x44\x01\x00\x3b",
+            content_type="image/gif",
         )

@@ -29,6 +29,20 @@ python manage.py runserver 0.0.0.0:8080
 
 By default Django uses SQLite locally. To enable Postgres, set `USE_POSTGRES=1` and the `POSTGRES_*` variables.
 
+## Local Docker Development
+
+Use the dev override when you want live backend code mounts and direct service ports:
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+Then use:
+
+- Django API: `http://localhost:8080/api/`
+- LLaVA service: `http://localhost:8001/health`
+
 ## Self-Hosted Deployment
 
 1. Copy `.env.example` to `.env` and fill in real values.
@@ -61,8 +75,10 @@ docker compose logs -f llava
 ### `llava_service`
 
 - FastAPI service with `GET /health` and `POST /analyze`;
+- supports `POST /analyze/batch` for multiple multipart images;
 - loads `llava-hf/llava-1.5-7b-hf` by default;
-- can run in 4-bit mode with `LLAVA_LOAD_IN_4BIT=1`;
+- can run in 4-bit mode with `LLAVA_LOAD_IN_4BIT=1` when CUDA is available;
+- falls back to CPU when GPU is unavailable;
 - accepts multipart `image` and `prompt`;
 - returns JSON with `description`.
 
@@ -92,12 +108,20 @@ docker compose logs -f llava
 - `LLAVA_LOAD_IN_4BIT`
 - `LLAVA_MAX_NEW_TOKENS`
 - `LLAVA_TIMEOUT_SECONDS`
+- `LLAVA_GENERATION_TIMEOUT_SECONDS`
 - `FACE_DETECTION_ENABLED`
+- `DRF_PAGE_SIZE`
 
 ## API Endpoints
 
 - `GET /api/health/`
-- `POST /api/upload/`
+- `POST /api/photos/upload/`
+- `GET /api/photos/?device_id=<device>&page=1`
+- `GET /api/photos/?device_id=<device>&tags=Животные&category=animals&face_number=1`
+- `GET /api/albums/?device_id=<device>&tags=Животные`
+- `GET /api/faces/?device_id=<device>`
+
+`POST /api/upload/` remains as a legacy alias for older clients.
 
 ## Tests
 

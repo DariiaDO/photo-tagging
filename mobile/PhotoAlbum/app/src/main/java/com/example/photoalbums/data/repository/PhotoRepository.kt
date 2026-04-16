@@ -5,6 +5,7 @@ import android.net.Uri
 import com.example.photoalbums.data.local.PhotoDao
 import com.example.photoalbums.data.local.PhotoEntity
 import com.example.photoalbums.data.local.UserPreferences
+import com.example.photoalbums.data.remote.ApiErrorResponse
 import com.example.photoalbums.data.remote.ServerApi
 import com.example.photoalbums.data.remote.SyncResponse
 import com.example.photoalbums.utils.createImageMultipart
@@ -53,7 +54,10 @@ class PhotoRepository(
 
         val response = api.syncPhotos(parts)
         if (!response.isSuccessful) {
-            throw IOException("Server error: ${response.code()} ${response.message()}")
+            val detail = parseApiError(response.errorBody()?.string())
+                ?: response.message()
+                ?: "Unknown server error"
+            throw IOException("Server error: ${response.code()} $detail")
         }
 
         val body = response.body() ?: throw IOException("Empty server response")
@@ -178,6 +182,14 @@ class PhotoRepository(
         }
 
         dao.insertAll(photos)
+    }
+
+    private fun parseApiError(rawBody: String?): String? {
+        val body = rawBody?.trim().orEmpty()
+        if (body.isEmpty()) return null
+        return runCatching {
+            gson.fromJson(body, ApiErrorResponse::class.java)?.message?.takeIf { it.isNotBlank() }
+        }.getOrNull() ?: body
     }
 
     companion object {

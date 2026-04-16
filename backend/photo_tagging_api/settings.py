@@ -45,6 +45,9 @@ ALLOWED_HOSTS = _env_list(
     "DJANGO_ALLOWED_HOSTS",
     ["127.0.0.1", "localhost"],
 )
+CSRF_TRUSTED_ORIGINS = _env_list("DJANGO_CSRF_TRUSTED_ORIGINS", [])
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
 
 
 INSTALLED_APPS = [
@@ -136,6 +139,12 @@ STATIC_URL = os.getenv("DJANGO_STATIC_URL", "/static/")
 STATIC_ROOT = Path(os.getenv("DJANGO_STATIC_ROOT", str(BASE_DIR / "staticfiles")))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+REST_FRAMEWORK = {
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": _env_int("DRF_PAGE_SIZE", 50),
+    "EXCEPTION_HANDLER": "photos.responses.api_exception_handler",
+}
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = _env_int("DATA_UPLOAD_MAX_MEMORY_SIZE", 10 * 1024 * 1024)
 FILE_UPLOAD_MAX_MEMORY_SIZE = _env_int("FILE_UPLOAD_MAX_MEMORY_SIZE", 10 * 1024 * 1024)

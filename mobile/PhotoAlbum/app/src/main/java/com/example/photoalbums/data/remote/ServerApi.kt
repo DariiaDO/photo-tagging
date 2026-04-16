@@ -6,6 +6,12 @@ import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
 
+data class ApiErrorResponse(
+    val status: String? = null,
+    val message: String? = null,
+    val details: Any? = null
+)
+
 data class SyncFaceResponse(
     val bbox: Map<String, Int>,
     val det_score: Double,
@@ -55,7 +61,7 @@ data class SyncResponse(
 interface ServerApi {
 
     @Multipart
-    @POST("api/upload/")
+    @POST("api/photos/upload/")
     suspend fun syncPhotos(
         @Part parts: List<MultipartBody.Part>
     ): Response<SyncResponse>
