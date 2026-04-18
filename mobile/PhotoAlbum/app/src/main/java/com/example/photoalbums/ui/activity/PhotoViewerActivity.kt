@@ -16,7 +16,11 @@ class PhotoViewerActivity : AppCompatActivity() {
 
         val imageUrl = intent.getStringExtra(EXTRA_IMAGE_URL)
         val fallbackUri = intent.getStringExtra(EXTRA_FALLBACK_URI)
-        ImageLoader.load(binding.fullscreenImage, ImageSourceResolver.resolve(imageUrl, fallbackUri))
+        ImageLoader.load(
+            binding.fullscreenImage,
+            ImageSourceResolver.resolve(imageUrl, null),
+            ImageSourceResolver.resolve(null, fallbackUri)
+        )
 
         binding.closeButton.setOnClickListener { finish() }
         binding.fullscreenImage.setOnClickListener { finish() }

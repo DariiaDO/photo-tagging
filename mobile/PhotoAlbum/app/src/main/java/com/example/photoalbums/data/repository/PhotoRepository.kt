@@ -114,7 +114,7 @@ class PhotoRepository(
                     key = FACES_INDEX_KEY,
                     title = FACES_INDEX_TITLE,
                     photoCount = facePhotos.size,
-                    coverUri = facePhotos.firstOrNull()?.imageUrl ?: facePhotos.firstOrNull()?.uri,
+                    coverUri = facePhotos.firstOrNull()?.uri ?: facePhotos.firstOrNull()?.imageUrl,
                     type = TYPE_FACES_INDEX
                 )
             )
@@ -141,7 +141,7 @@ class PhotoRepository(
                 key = "$FACE_PREFIX$faceNumber",
                 title = labels[faceNumber]?.takeIf { it.isNotBlank() } ?: "Лицо #$faceNumber",
                 photoCount = albumPhotos.size,
-                coverUri = albumPhotos.firstOrNull()?.imageUrl ?: albumPhotos.firstOrNull()?.uri,
+                coverUri = albumPhotos.firstOrNull()?.uri ?: albumPhotos.firstOrNull()?.imageUrl,
                 type = TYPE_FACE,
                 faceNumber = faceNumber
             )
@@ -232,7 +232,7 @@ class PhotoRepository(
                         key = key,
                         title = key.substringAfter(TAG_PREFIX),
                         photoCount = albumPhotos.size,
-                        coverUri = albumPhotos.firstOrNull()?.imageUrl ?: albumPhotos.firstOrNull()?.uri,
+                        coverUri = albumPhotos.firstOrNull()?.uri ?: albumPhotos.firstOrNull()?.imageUrl,
                         type = TYPE_TAG
                     )
                 }

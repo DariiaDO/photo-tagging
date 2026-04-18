@@ -38,22 +38,20 @@ class PhotoAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = getItem(position)
-        val isExpanded = expandedDescriptions.contains(item.uri)
 
-        holder.description.text = item.description.ifBlank {
-            holder.itemView.context.getString(R.string.photo_description_placeholder)
-        }
-        holder.description.visibility = if (isExpanded) View.VISIBLE else View.GONE
-        holder.detailsButton.text = holder.itemView.context.getString(
-            if (isExpanded) R.string.hide_description_button else R.string.show_description_button
-        )
+        bindDescription(holder, item)
         holder.detailsButton.setOnClickListener {
-            if (expandedDescriptions.contains(item.uri)) {
-                expandedDescriptions.remove(item.uri)
+            val currentPosition = holder.bindingAdapterPosition
+                .takeIf { it != RecyclerView.NO_POSITION }
+                ?: return@setOnClickListener
+            val currentItem = getItem(currentPosition)
+
+            if (expandedDescriptions.contains(currentItem.uri)) {
+                expandedDescriptions.remove(currentItem.uri)
             } else {
-                expandedDescriptions.add(item.uri)
+                expandedDescriptions.add(currentItem.uri)
             }
-            notifyItemChanged(position)
+            bindDescription(holder, currentItem)
         }
 
         val faceText = item.faceNumbers
@@ -68,8 +66,23 @@ class PhotoAdapter(
             else -> holder.itemView.context.getString(R.string.photo_tags_placeholder)
         }
 
-        ImageLoader.load(holder.image, ImageSourceResolver.resolve(item.imageUrl, item.uri))
+        ImageLoader.load(
+            holder.image,
+            ImageSourceResolver.resolve(item.imageUrl, null),
+            ImageSourceResolver.resolve(null, item.uri)
+        )
         holder.image.setOnClickListener { onPhotoClick(item) }
+    }
+
+    private fun bindDescription(holder: ViewHolder, item: PhotoEntity) {
+        val isExpanded = expandedDescriptions.contains(item.uri)
+        holder.description.text = item.description.ifBlank {
+            holder.itemView.context.getString(R.string.photo_description_placeholder)
+        }
+        holder.description.visibility = if (isExpanded) View.VISIBLE else View.GONE
+        holder.detailsButton.text = holder.itemView.context.getString(
+            if (isExpanded) R.string.hide_description_button else R.string.show_description_button
+        )
     }
 
     class DiffCallback : DiffUtil.ItemCallback<PhotoEntity>() {
