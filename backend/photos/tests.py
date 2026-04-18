@@ -20,6 +20,7 @@ from .services.vision_api import (
     _extract_base_tags,
     _extract_description_from_response,
     _get_base_tags,
+    _merge_tags,
     _should_keep_animals_tag,
     _should_keep_people_tag,
 )
@@ -147,6 +148,16 @@ class FaceServiceNormalizationTests(SimpleTestCase):
 
 
 class VisionPromptHeuristicsTests(SimpleTestCase):
+    @override_settings(LLAVA_PREFERRED_TAGS=["Dog", " Food ", "dog"])
+    def test_get_base_tags_supports_preferred_tags_setting(self):
+        self.assertEqual(_get_base_tags(), ["dog", "food"])
+
+    def test_merge_tags_keeps_order_and_removes_duplicates(self):
+        self.assertEqual(
+            _merge_tags(["people", "food"], ["Food", "Travel"]),
+            ["people", "food", "travel"],
+        )
+
     def test_people_tag_is_removed_for_body_part_only(self):
         self.assertFalse(_should_keep_people_tag("A close-up of a hand holding a cup."))
 
@@ -354,6 +365,10 @@ class PhotoApiTests(TestCase):
         self.assertEqual(response.data["photos"][0]["client_photo_id"], "content://photo/1")
         self.assertEqual(response.data["photos"][0]["face_numbers"], [1])
         self.assertEqual(ProcessedImage.objects.count(), 1)
+        analyze_image.assert_called_once_with(
+            ProcessedImage.objects.get().image.path,
+            preferred_tags=["Животные"],
+        )
 
     def test_photo_list_requires_valid_device_id(self):
         response = self.client.get("/api/photos/", {"device_id": "bad"})

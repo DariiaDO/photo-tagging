@@ -145,20 +145,41 @@ def _get_prompt() -> str:
     return prompt.strip()
 
 
+def _normalize_tags(raw) -> list[str]:
+    if isinstance(raw, str):
+        raw = raw.split(",")
+    if not isinstance(raw, (list, tuple, set)):
+        return []
+
+    tags: list[str] = []
+    for item in raw:
+        tag = str(item).strip().lower()
+        if tag and tag not in tags:
+            tags.append(tag)
+    return tags
+
+
 def _get_base_tags() -> list[str]:
     default_tags = [
         "people", "animals", "food", "transport", "nature",
         "interior", "city", "architecture", "clothing", "sports",
         "technology", "documents", "art", "travel", "night",
     ]
-    raw = getattr(settings, "LLAVA_BASE_TAGS", getattr(settings, "LLAVA_FIXED_TAGS", default_tags))
-    if isinstance(raw, str):
-        values = [item.strip().lower() for item in raw.split(",")]
-        return [item for item in values if item]
-    if isinstance(raw, (list, tuple, set)):
-        values = [str(item).strip().lower() for item in raw]
-        return [item for item in values if item]
-    return default_tags
+    raw = getattr(
+        settings,
+        "LLAVA_BASE_TAGS",
+        getattr(settings, "LLAVA_PREFERRED_TAGS", getattr(settings, "LLAVA_FIXED_TAGS", default_tags)),
+    )
+    return _normalize_tags(raw) or default_tags
+
+
+def _merge_tags(*tag_groups) -> list[str]:
+    tags: list[str] = []
+    for group in tag_groups:
+        for tag in _normalize_tags(group):
+            if tag not in tags:
+                tags.append(tag)
+    return tags
 
 
 def _build_prompt(base_prompt: str, base_tags: list[str]) -> str:
@@ -323,9 +344,9 @@ def _extract_description_from_response(payload: dict) -> str:
     return ""
 
 
-def analyze_image_llava(image_path: str) -> dict:
+def analyze_image_llava(image_path: str, preferred_tags: list[str] | None = None) -> dict:
     endpoint = _get_endpoint()
-    base_tags = _get_base_tags()
+    base_tags = _merge_tags(_get_base_tags(), preferred_tags)
     prompt = _build_prompt(_get_prompt(), base_tags)
     timeout = _get_timeout_seconds()
 

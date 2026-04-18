@@ -75,7 +75,7 @@ class PhotoViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             image_path = processed_image.image.path
 
             try:
-                result = analyze_image(image_path)
+                result = analyze_image(image_path, preferred_tags=requested_tags)
             except Exception as exc:
                 logger.exception("LLaVA analysis failed for photo %s", processed_image.id)
                 result = {
