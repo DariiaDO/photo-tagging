@@ -164,7 +164,7 @@ def serialize_photo(photo: ProcessedImage, requested_tags: list[str]) -> dict[st
         "client_photo_id": photo.client_photo_id,
         "original_filename": photo.image.name.split("/")[-1] if photo.image else None,
         "image_url": photo.image.url if photo.image else None,
-        "tags": photo.tags or [],
+        "tags": tag_names,
         "category": photo.category,
         "description": photo.description,
         "faces": [sanitize_face(face) for face in faces],
