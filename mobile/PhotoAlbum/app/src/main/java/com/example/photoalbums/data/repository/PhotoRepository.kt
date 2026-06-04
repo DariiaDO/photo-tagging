@@ -10,6 +10,7 @@ import com.example.photoalbums.data.remote.ServerApi
 import com.example.photoalbums.data.remote.SyncResponse
 import com.example.photoalbums.utils.createImageMultipart
 import com.example.photoalbums.utils.createTextPart
+import com.example.photoalbums.utils.LocalTextTranslator
 import com.google.gson.Gson
 import java.io.IOException
 
@@ -114,7 +115,7 @@ class PhotoRepository(
                     key = FACES_INDEX_KEY,
                     title = FACES_INDEX_TITLE,
                     photoCount = facePhotos.size,
-                    coverUri = facePhotos.firstOrNull()?.uri ?: facePhotos.firstOrNull()?.imageUrl,
+                    coverUri = facePhotos.firstOrNull()?.imageUrl ?: facePhotos.firstOrNull()?.uri,
                     type = TYPE_FACES_INDEX
                 )
             )
@@ -141,7 +142,7 @@ class PhotoRepository(
                 key = "$FACE_PREFIX$faceNumber",
                 title = labels[faceNumber]?.takeIf { it.isNotBlank() } ?: "Лицо #$faceNumber",
                 photoCount = albumPhotos.size,
-                coverUri = albumPhotos.firstOrNull()?.uri ?: albumPhotos.firstOrNull()?.imageUrl,
+                coverUri = albumPhotos.firstOrNull()?.imageUrl ?: albumPhotos.firstOrNull()?.uri,
                 type = TYPE_FACE,
                 faceNumber = faceNumber
             )
@@ -165,17 +166,36 @@ class PhotoRepository(
     }
 
     private suspend fun persistSnapshot(body: SyncResponse) {
+        val requestedTags = userPreferences.getTags()
         val photos = body.photos.map { remotePhoto ->
+            val translatedTags = LocalTextTranslator.translateTags(
+                remotePhoto.tags.orEmpty().filter { it.isNotBlank() }
+            )
+            val translatedDescription = LocalTextTranslator.translateDescription(
+                remotePhoto.description.orEmpty()
+            )
+            val translatedCategory = LocalTextTranslator.translateTag(
+                remotePhoto.category?.takeIf { it.isNotBlank() } ?: "unknown"
+            )
+            val translatedAlbumKeys = matchRequestedAlbumKeys(
+                requestedTags = requestedTags,
+                translatedTags = translatedTags,
+                translatedCategory = translatedCategory,
+                translatedDescription = translatedDescription
+            ).ifEmpty { listOf("$TAG_PREFIX$OTHER_ALBUM_TITLE") }
+            val faceAlbumKeys = remotePhoto.face_numbers.orEmpty().map { "$FACE_PREFIX$it" }
+            val albumKeys = (translatedAlbumKeys + faceAlbumKeys).distinct()
+
             PhotoEntity(
                 uri = remotePhoto.client_photo_id,
                 serverId = remotePhoto.id,
-                description = remotePhoto.description,
-                tags = remotePhoto.tags,
-                albumNames = remotePhoto.album_keys,
-                albumKeys = remotePhoto.album_keys,
-                faceNumbers = remotePhoto.face_numbers,
+                description = translatedDescription,
+                tags = translatedTags,
+                albumNames = albumKeys,
+                albumKeys = albumKeys,
+                faceNumbers = remotePhoto.face_numbers.orEmpty(),
                 isUploaded = true,
-                category = remotePhoto.category,
+                category = translatedCategory,
                 imageUrl = remotePhoto.image_url,
                 faceCount = remotePhoto.face_count
             )
@@ -202,28 +222,54 @@ class PhotoRepository(
         const val TYPE_FACE = "face"
         const val TYPE_FACES_INDEX = "faces_index"
 
+        private fun matchRequestedAlbumKeys(
+            requestedTags: List<String>,
+            translatedTags: List<String>,
+            translatedCategory: String,
+            translatedDescription: String
+        ): List<String> {
+            val searchable = (translatedTags + translatedCategory + translatedDescription)
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+
+            return requestedTags
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+                .filter { requestedTag ->
+                    searchable.any { value ->
+                        LocalTextTranslator.matchesTagQuery(value, requestedTag)
+                    }
+                }
+                .map(LocalTextTranslator::albumKeyForTranslatedTag)
+        }
+
         internal fun buildTagAlbumDescriptors(
             photos: List<PhotoEntity>,
             requestedTags: List<String>
         ): List<AlbumDescriptor> {
             val tagAlbumsByKey = linkedMapOf<String, MutableList<PhotoEntity>>()
-
-            photos.forEach { photo ->
-                photo.albumKeys.distinct().forEach { key ->
-                    if (key.startsWith(TAG_PREFIX)) {
-                        tagAlbumsByKey.getOrPut(key) { mutableListOf() }.add(photo)
-                    }
-                }
-            }
-
-            requestedTags
+            val requestedKeys = requestedTags
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
                 .distinct()
                 .map { "$TAG_PREFIX$it" }
-                .forEach { key ->
-                    tagAlbumsByKey.putIfAbsent(key, mutableListOf())
+                .toSet()
+
+            requestedKeys.forEach { key ->
+                tagAlbumsByKey.putIfAbsent(key, mutableListOf())
+            }
+
+            photos.forEach { photo ->
+                val matchedKeys = requestedKeys.filter { key ->
+                    val requestedTag = key.substringAfter(TAG_PREFIX)
+                    photoMatchesRequestedTag(photo, requestedTag)
                 }
+                val keys = matchedKeys.ifEmpty { listOf("$TAG_PREFIX$OTHER_ALBUM_TITLE") }
+                keys.forEach { key ->
+                    tagAlbumsByKey.getOrPut(key) { mutableListOf() }.add(photo)
+                }
+            }
 
             return tagAlbumsByKey
                 .filterNot { (key, albumPhotos) -> key == "$TAG_PREFIX$OTHER_ALBUM_TITLE" && albumPhotos.isEmpty() }
@@ -232,10 +278,17 @@ class PhotoRepository(
                         key = key,
                         title = key.substringAfter(TAG_PREFIX),
                         photoCount = albumPhotos.size,
-                        coverUri = albumPhotos.firstOrNull()?.uri ?: albumPhotos.firstOrNull()?.imageUrl,
+                        coverUri = albumPhotos.firstOrNull()?.imageUrl ?: albumPhotos.firstOrNull()?.uri,
                         type = TYPE_TAG
                     )
                 }
+        }
+
+        private fun photoMatchesRequestedTag(photo: PhotoEntity, requestedTag: String): Boolean {
+            val searchable = photo.tags + photo.category + photo.description
+            return searchable.any { value ->
+                LocalTextTranslator.matchesTagQuery(value, requestedTag)
+            }
         }
     }
 }

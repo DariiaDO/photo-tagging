@@ -9,10 +9,16 @@ android {
     compileSdk = 36
 
     val debugApiBaseUrl = providers.gradleProperty("photoAlbumsDebugApiBaseUrl")
-        .orElse("http://172.20.10.4:8080/")
+        .orElse("http://185.182.108.239/")
         .get()
     val releaseApiBaseUrl = providers.gradleProperty("photoAlbumsReleaseApiBaseUrl")
         .orElse("https://example.com/")
+        .get()
+    val debugApiAuthToken = providers.gradleProperty("photoAlbumsDebugApiAuthToken")
+        .orElse("")
+        .get()
+    val releaseApiAuthToken = providers.gradleProperty("photoAlbumsReleaseApiAuthToken")
+        .orElse("")
         .get()
 
     defaultConfig {
@@ -28,9 +34,11 @@ android {
     buildTypes {
         debug {
             buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
+            buildConfigField("String", "PHOTO_API_AUTH_TOKEN", "\"$debugApiAuthToken\"")
         }
         release {
             buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
+            buildConfigField("String", "PHOTO_API_AUTH_TOKEN", "\"$releaseApiAuthToken\"")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -72,4 +80,5 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.mlkit:translate:17.0.3")
 }

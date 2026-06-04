@@ -14,7 +14,7 @@ class PhotoRepositoryTest {
             PhotoEntity(
                 uri = "uri-1",
                 description = "dog",
-                tags = listOf("dog"),
+                tags = listOf("Животные"),
                 albumKeys = listOf("tag:Животные")
             )
         )
@@ -34,7 +34,7 @@ class PhotoRepositoryTest {
             PhotoEntity(
                 uri = "uri-1",
                 description = "dog",
-                tags = listOf("dog"),
+                tags = listOf("Животные"),
                 albumKeys = listOf("tag:Животные")
             )
         )
@@ -46,5 +46,52 @@ class PhotoRepositoryTest {
 
         assertFalse(albums.any { it.key == "tag:Другое" })
         assertTrue(albums.any { it.key == "tag:Животные" })
+    }
+
+    @Test
+    fun buildTagAlbumDescriptors_ignoresUnselectedTagAlbums() {
+        val photos = listOf(
+            PhotoEntity(
+                uri = "uri-1",
+                description = "sunset",
+                tags = listOf("Природа", "Закат"),
+                albumKeys = listOf("tag:Природа", "tag:Закат")
+            ),
+            PhotoEntity(
+                uri = "uri-2",
+                description = "unknown object",
+                tags = emptyList(),
+                albumKeys = listOf("tag:Другое")
+            )
+        )
+
+        val albums = PhotoRepository.buildTagAlbumDescriptors(
+            photos = photos,
+            requestedTags = listOf("Природа")
+        )
+
+        assertEquals(listOf("tag:Природа", "tag:Другое"), albums.map { it.key })
+        assertFalse(albums.any { it.key == "tag:Закат" })
+    }
+
+    @Test
+    fun buildTagAlbumDescriptors_matchesCurrentUserTagByRussianDescription() {
+        val photos = listOf(
+            PhotoEntity(
+                uri = "uri-1",
+                description = "Штрих-код на белой упаковке",
+                tags = listOf("Документы"),
+                albumKeys = listOf("tag:Другое")
+            )
+        )
+
+        val albums = PhotoRepository.buildTagAlbumDescriptors(
+            photos = photos,
+            requestedTags = listOf("штрих-ко")
+        )
+
+        assertEquals(listOf("tag:штрих-ко"), albums.map { it.key })
+        assertEquals(1, albums.first().photoCount)
+        assertEquals("uri-1", albums.first().coverUri)
     }
 }

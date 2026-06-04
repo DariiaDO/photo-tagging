@@ -401,6 +401,30 @@ class PhotoApiTests(TestCase):
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["client_photo_id"], "photo-1")
 
+    @override_settings(PHOTO_API_AUTH_TOKEN="secret-token")
+    def test_photo_list_requires_bearer_token_when_configured(self):
+        response = self.client.get("/api/photos/", {"device_id": "device-test-3"})
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data["status"], "error")
+
+    @override_settings(PHOTO_API_AUTH_TOKEN="secret-token")
+    def test_photo_list_accepts_valid_bearer_token_when_configured(self):
+        response = self.client.get(
+            "/api/photos/",
+            {"device_id": "device-test-3"},
+            HTTP_AUTHORIZATION="Bearer secret-token",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(PHOTO_API_AUTH_TOKEN="secret-token")
+    def test_health_check_remains_open_with_api_token_configured(self):
+        response = self.client.get("/api/health/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "ok")
+
     def _image(self, name: str):
         return SimpleUploadedFile(
             name,

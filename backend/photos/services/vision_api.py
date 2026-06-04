@@ -4,10 +4,6 @@ import mimetypes
 
 import requests
 from django.conf import settings
-try:
-    from deep_translator import GoogleTranslator
-except Exception:  # pragma: no cover - optional dependency fallback
-    GoogleTranslator = None
 
 TAG_KEYWORDS = {
     "people": {
@@ -47,8 +43,11 @@ TAG_KEYWORDS = {
 
 STOP_WORDS = {
     "the", "and", "for", "with", "this", "that", "from", "into", "are", "is", "a", "an", "to", "of",
+    "in", "on", "at", "near", "under", "over", "clearly", "very",
     "и", "в", "на", "с", "по", "для", "это", "как", "или", "а", "к", "из", "у", "за",
 }
+
+TAG_SUFFIX_DENYLIST = ("ing", "ed", "ly")
 
 NON_PROMINENT_PEOPLE_PATTERNS = [
     r"\\bhands?\\b",
@@ -188,6 +187,9 @@ def _build_prompt(base_prompt: str, base_tags: list[str]) -> str:
         f"{base_prompt}\n\n"
         f"Preferred tag list: [{tags_line}]. "
         "Use these tags whenever they fit. If none apply, add the most relevant custom tags. "
+        "Tags and keyword-style words must be nouns or adjectives only. "
+        "Do not use verbs, adverbs, prepositions, conjunctions, or action words as tags. "
+        "For example, prefer 'dog', 'street', 'red', 'wooden' and avoid 'standing', 'holding', 'running', 'clearly', 'near'. "
         "Only use the people tag when a real person is a main, clearly visible subject occupying a meaningful part of the frame. "
         "Do not use the people tag for only a hand, arm, leg, silhouette, reflection, mannequin, statue, poster, drawing, or any isolated body part. "
         "If people are tiny, distant, heavily blurred, or only in the background, do not use the people tag. "
@@ -225,41 +227,6 @@ def _get_auth_token() -> str:
     return os.getenv("LLAVA_AUTH_TOKEN", "").strip()
 
 
-def _translate_to_russian_enabled() -> bool:
-    value = getattr(settings, "TRANSLATE_TO_RUSSIAN", False)
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _translate_to_russian(text: str) -> str:
-    if not text or not _translate_to_russian_enabled():
-        return text
-    if GoogleTranslator is None:
-        return text
-    try:
-        translated = GoogleTranslator(source="auto", target="ru").translate(text)
-        return translated.strip() if translated else text
-    except Exception:
-        return text
-
-
-def _translate_tags_to_russian(tags: list[str]) -> list[str]:
-    if not tags:
-        return tags
-    if not _translate_to_russian_enabled():
-        return tags
-
-    translated_tags: list[str] = []
-    for tag in tags:
-        translated = _translate_to_russian(tag).lower().strip()
-        if not translated:
-            translated = tag
-        if translated not in translated_tags:
-            translated_tags.append(translated)
-    return translated_tags
-
-
 def _should_keep_people_tag(caption: str) -> bool:
     caption_lower = caption.lower()
     if any(re.search(pattern, caption_lower) for pattern in NON_PROMINENT_PEOPLE_PATTERNS):
@@ -295,6 +262,8 @@ def _extract_fallback_tags(caption: str, limit: int = 5) -> list[str]:
     result: list[str] = []
     for word in words:
         if len(word) < 4 or word in STOP_WORDS:
+            continue
+        if word.isascii() and word.endswith(TAG_SUFFIX_DENYLIST):
             continue
         if word not in result:
             result.append(word)
@@ -409,13 +378,12 @@ def analyze_image_llava(image_path: str, preferred_tags: list[str] | None = None
         caption = str(payload).strip()
 
     tags = _compose_tags(caption, base_tags)
-    tags = _translate_tags_to_russian(tags)
     category = _detect_category(tags)
 
     return {
         "tags": tags,
         "category": category,
-        "description": _translate_to_russian(caption),
+        "description": caption,
     }
 
 

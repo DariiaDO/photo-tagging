@@ -3,7 +3,6 @@ certifi==2026.1.4
 charset-normalizer==3.4.4
 Django==6.0.1
 djangorestframework==3.16.1
-deep-translator==1.11.4
 gunicorn==23.0.0
 idna==3.11
 insightface==0.7.3

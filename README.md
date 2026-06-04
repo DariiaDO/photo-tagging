@@ -82,6 +82,8 @@ docker compose logs -f llava
 - accepts multipart `image` and `prompt`;
 - returns JSON with `description`.
 
+The backend stores model tags and descriptions as received from analysis. The Android client translates tags and descriptions locally before saving them to its Room database, so albums and search use the Russian text shown in the app.
+
 ### `postgres`
 
 - production database for Django;
@@ -97,6 +99,7 @@ docker compose logs -f llava
 - `DJANGO_SECRET_KEY`
 - `DJANGO_DEBUG`
 - `DJANGO_ALLOWED_HOSTS`
+- `PHOTO_API_AUTH_TOKEN`
 - `USE_POSTGRES`
 - `POSTGRES_DB`
 - `POSTGRES_USER`
@@ -122,6 +125,14 @@ docker compose logs -f llava
 - `GET /api/faces/?device_id=<device>`
 
 `POST /api/upload/` remains as a legacy alias for older clients.
+
+When `PHOTO_API_AUTH_TOKEN` is set, user API endpoints require:
+
+```http
+Authorization: Bearer <PHOTO_API_AUTH_TOKEN>
+```
+
+`GET /api/health/` remains open for service availability checks.
 
 ## Tests
 

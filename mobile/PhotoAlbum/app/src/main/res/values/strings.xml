@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Photo Albums</string>
+    <string name="app_name">Фотоальбомы</string>
     <string name="toolbar_title">Галерея</string>
     <string name="search_hint">Поиск по фото</string>
     <string name="upload_button_text">Выбрать фото</string>

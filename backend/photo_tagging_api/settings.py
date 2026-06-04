@@ -158,6 +158,46 @@ STATIC_ROOT = os.getenv('DJANGO_STATIC_ROOT', BASE_DIR / 'staticfiles')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+PHOTO_API_AUTH_TOKEN = os.getenv('PHOTO_API_AUTH_TOKEN', '').strip()
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'photos.authentication.OptionalBearerTokenAuthentication',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': int(os.getenv('DRF_PAGE_SIZE', '50')),
+    'EXCEPTION_HANDLER': 'photos.responses.api_exception_handler',
+}
+
+LOG_LEVEL = os.getenv('DJANGO_LOG_LEVEL', 'INFO')
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'default': {
+            'format': '%(asctime)s %(levelname)s [%(name)s] %(message)s',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'default',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': LOG_LEVEL,
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+    },
+}
+
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
@@ -182,6 +222,9 @@ SECTION 1: FACTUAL VISUAL INVENTORY (Keywords for Search)
 - Lighting: [Direction and quality, e.g., 'harsh sunlight from left', 'soft ambient indoor', 'dark shadows']
 - Foreground Objects: [List only items clearly in front, e.g., 'blurred hand holding paper', 'coffee cup on table edge']
 - Colors & Materials: [Dominant palette and textures, e.g., 'matte white paper', 'glossy red ceramic']
+
+For keyword-style fields, use only nouns and adjectives. Do not use verbs, adverbs,
+prepositions, conjunctions, or action words as searchable keywords.
 
 SECTION 2: STRUCTURED CAPTION
 Write exactly 4 sentences.

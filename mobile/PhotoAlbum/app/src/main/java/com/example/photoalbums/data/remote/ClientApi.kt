@@ -9,6 +9,17 @@ import java.util.concurrent.TimeUnit
 object ClientApi {
 
     private val client = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            val token = BuildConfig.PHOTO_API_AUTH_TOKEN.trim()
+            val request = if (token.isNotEmpty()) {
+                chain.request().newBuilder()
+                    .header("Authorization", "Bearer $token")
+                    .build()
+            } else {
+                chain.request()
+            }
+            chain.proceed(request)
+        }
         .connectTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(120, TimeUnit.SECONDS)
         .readTimeout(300, TimeUnit.SECONDS)
