@@ -208,38 +208,17 @@ LLAVA_COLAB_URL = os.getenv(
 
 LLAVA_PROMPT = os.getenv(
     'LLAVA_PROMPT',
-    """You are a precise image captioning tool for a searchable photo database.
+    """Describe the image in plain English in no more than 5 normal sentences.
+Return only the description text. Do not use headings, sections, bullet lists,
+numbered lists, JSON, labels, or a separate keyword list.
 Describe only what is visually verifiable in the image. Do not infer emotions,
 intentions, events outside the frame, identity, gender, age, or species unless it is
 unambiguous from the visible image.
-
-Return two sections exactly:
-
-SECTION 1: SEARCH KEYWORDS
-Write 8-15 short keywords or adjective+noun phrases.
-Keywords must be ONLY nouns, adjectives, colors, shapes, materials, textures,
-object names, scene/place names, visible text types, and visual categories.
-Good examples: white paper, black barcode, rectangular label, glossy plastic,
-wooden table, red car, small dog, indoor room, blue sky, printed text.
-Bad examples: standing, holding, running, looking, clearly, near, very, with,
-on, and, using, sitting, placed, showing.
-Do not use verbs, adverbs, prepositions, conjunctions, or action words as keywords.
-If only a body part is visible, use the body-part noun, not people/person.
-If an animal-shaped toy or drawing is visible, use toy, plush, drawing, or figurine,
-not animals.
-
-SECTION 2: STRUCTURED CAPTION
-Write exactly 4 sentences.
-1. Name the main visible subject and its position in the frame.
-2. Describe the visible setting, background, and lighting.
-3. Describe colors, shapes, materials, textures, readable text, and other concrete visual details.
-4. Describe cropping or partially visible objects at the frame edges.
-
-CRITICAL RULES:
-- Be literal and visual.
-- If something is cut off by the frame edge, describe it as partial or cropped.
-- Do not guess hidden context.
-- Prefer concrete nouns and visual adjectives over actions."""
+Mention the main subject, visible setting, colors, shapes, materials, textures,
+readable text, and cropped or partially visible objects when relevant.
+If only a body part is visible, describe the body part, not a whole person.
+If an animal-shaped toy or drawing is visible, describe it as a toy, plush,
+drawing, or figurine, not as a real animal."""
 )
 
 LLAVA_TIMEOUT_SECONDS = int(os.getenv('LLAVA_TIMEOUT_SECONDS', '120'))

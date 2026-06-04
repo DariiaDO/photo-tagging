@@ -44,6 +44,8 @@ TAG_KEYWORDS = {
 STOP_WORDS = {
     "the", "and", "for", "with", "this", "that", "from", "into", "are", "is", "a", "an", "to", "of",
     "in", "on", "at", "near", "under", "over", "clearly", "very",
+    "section", "keyword", "keywords", "caption", "description", "sentence", "sentences",
+    "subject", "setting", "background", "lighting", "foreground", "objects", "materials",
     "и", "в", "на", "с", "по", "для", "это", "как", "или", "а", "к", "из", "у", "за",
 }
 
@@ -186,11 +188,11 @@ def _build_prompt(base_prompt: str, base_tags: list[str]) -> str:
     return (
         f"{base_prompt}\n\n"
         f"Preferred tag list: [{tags_line}]. "
-        "Use these tags whenever they fit. If none apply, add the most relevant custom tags. "
-        "Tags and keyword-style words must be nouns, adjectives, colors, shapes, materials, textures, object names, or scene categories only. "
-        "Do not use verbs, adverbs, prepositions, conjunctions, action words, or full actions as tags. "
-        "Prefer 'barcode', 'rectangular', 'black', 'white', 'plastic', 'document', 'dog', 'street', 'red', 'wooden'. "
-        "Avoid 'standing', 'holding', 'running', 'sitting', 'showing', 'clearly', 'near', 'with', 'on'. "
+        "Use this tag list only as internal guidance for choosing visually important nouns and adjectives. "
+        "Do not print tags, keywords, headings, sections, labels, or lists in the response. "
+        "Return only the plain description text. "
+        "For visual concepts, prefer nouns and adjective characteristics such as color, shape, material, texture, object type, and scene category. "
+        "Avoid treating verbs, adverbs, prepositions, conjunctions, or action words as important concepts. "
         "Only use the people tag when a real person is a main, clearly visible subject occupying a meaningful part of the frame. "
         "Do not use the people tag for only a hand, arm, leg, silhouette, reflection, mannequin, statue, poster, drawing, or any isolated body part. "
         "If people are tiny, distant, heavily blurred, or only in the background, do not use the people tag. "
