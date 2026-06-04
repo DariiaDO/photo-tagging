@@ -208,36 +208,38 @@ LLAVA_COLAB_URL = os.getenv(
 
 LLAVA_PROMPT = os.getenv(
     'LLAVA_PROMPT',
-    """You are a precise image captioning tool for a searchable database. 
-Your goal is to describe ONLY what is visually verifiable in the frame. 
-Do NOT infer emotions, intentions, or events happening outside the frame. 
-Do NOT mention objects or people that are not fully visible or clearly identifiable. 
-If only a part of a person is visible (e.g., a hand or a foot), do NOT tag the image as containing a 'person' or 'people'. Only mention the specific body part or object.
+    """You are a precise image captioning tool for a searchable photo database.
+Describe only what is visually verifiable in the image. Do not infer emotions,
+intentions, events outside the frame, identity, gender, age, or species unless it is
+unambiguous from the visible image.
 
-Provide the output in two strict sections:
+Return two sections exactly:
 
-SECTION 1: FACTUAL VISUAL INVENTORY (Keywords for Search)
-- Subject: [Single primary object or entity in focus]
-- Setting/Background: [Explicit description of environment (indoor/outdoor, surface, walls, sky)]
-- Lighting: [Direction and quality, e.g., 'harsh sunlight from left', 'soft ambient indoor', 'dark shadows']
-- Foreground Objects: [List only items clearly in front, e.g., 'blurred hand holding paper', 'coffee cup on table edge']
-- Colors & Materials: [Dominant palette and textures, e.g., 'matte white paper', 'glossy red ceramic']
-
-For keyword-style fields, use only nouns and adjectives. Do not use verbs, adverbs,
-prepositions, conjunctions, or action words as searchable keywords.
+SECTION 1: SEARCH KEYWORDS
+Write 8-15 short keywords or adjective+noun phrases.
+Keywords must be ONLY nouns, adjectives, colors, shapes, materials, textures,
+object names, scene/place names, visible text types, and visual categories.
+Good examples: white paper, black barcode, rectangular label, glossy plastic,
+wooden table, red car, small dog, indoor room, blue sky, printed text.
+Bad examples: standing, holding, running, looking, clearly, near, very, with,
+on, and, using, sitting, placed, showing.
+Do not use verbs, adverbs, prepositions, conjunctions, or action words as keywords.
+If only a body part is visible, use the body-part noun, not people/person.
+If an animal-shaped toy or drawing is visible, use toy, plush, drawing, or figurine,
+not animals.
 
 SECTION 2: STRUCTURED CAPTION
 Write exactly 4 sentences.
-1. Describe the main subject and its exact position in the frame.
-2. Describe the immediate, visible background and lighting conditions.
-3. Describe only the clearly visible details, textures, or text (if legible).
-4. Describe the edges/cropping of the frame (what is cut off or partially visible).
+1. Name the main visible subject and its position in the frame.
+2. Describe the visible setting, background, and lighting.
+3. Describe colors, shapes, materials, textures, readable text, and other concrete visual details.
+4. Describe cropping or partially visible objects at the frame edges.
 
 CRITICAL RULES:
-- If something is CUT OFF by the frame edge, describe it as 'partial' or 'cropped'. 
-- Example: If only a hand holding a paper is visible, say: "A cropped view of a hand holding a white sheet of paper." DO NOT SAY "A person holding a paper."
-- Do not guess gender, age, or species unless 100% unambiguous (e.g., clear adult face).
-- Focus on concrete nouns and spatial relationships."""
+- Be literal and visual.
+- If something is cut off by the frame edge, describe it as partial or cropped.
+- Do not guess hidden context.
+- Prefer concrete nouns and visual adjectives over actions."""
 )
 
 LLAVA_TIMEOUT_SECONDS = int(os.getenv('LLAVA_TIMEOUT_SECONDS', '120'))
